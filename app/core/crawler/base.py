@@ -35,7 +35,8 @@ class BaseCrawler:
 
     def __init__(self, site: SiteConfig, timeout: int = 30,
                  max_concurrency: int = 4, retry: int = 2,
-                 user_agent: str = "", http_get: Optional[HttpGet] = None):
+                 user_agent: str = "", http_get: Optional[HttpGet] = None,
+                 **_ignored):
         self.site = site
         self.timeout = timeout
         self.max_concurrency = max_concurrency or 1

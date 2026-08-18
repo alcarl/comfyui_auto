@@ -50,3 +50,7 @@ Thumbs.db
 libraries/
 config/core_config.json
 !config/krea2i2i.json
+
+# 浏览器自动化登录态（含账号 cookie，禁止提交）
+**/browser_profile/
+*.pinterest_session.dat

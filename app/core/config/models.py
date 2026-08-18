@@ -14,6 +14,13 @@ from pydantic import BaseModel, Field
 class CrawlerType(str, Enum):
     """抓取器类型枚举，用于配置中指定使用哪个抓取器。"""
     PINTEREST = "pinterest"
+    PINTEREST_BROWSER = "pinterest_browser"
+
+
+class CrawlerBackend(str, Enum):
+    """抓取后端：http（纯请求）或 browser（nodriver 真实浏览器）。"""
+    HTTP = "http"
+    BROWSER = "browser"
 
 
 class ComfyUIUploadMethod(str, Enum):
@@ -29,6 +36,8 @@ class SiteConfig(BaseModel):
     name: str = Field(..., description="网站别名，如 pinterest、unsplash")
     crawler_type: CrawlerType = Field(..., description="抓取器类型")
     enabled: bool = Field(default=True, description="是否启用该站点")
+    # 抓取后端：http（纯请求）或 browser（nodriver 真实浏览器，可绕过反爬与登录）
+    backend: CrawlerBackend = Field(default=CrawlerBackend.HTTP, description="抓取后端")
     # 一期：支持在 URL 列表中配置 Pinterest 图片墙链接
     urls: List[str] = Field(default_factory=list, description="待抓取的图片墙/画板 URL 列表")
     # 每个站点可覆盖全局的并发与超时设置（可选）
@@ -36,6 +45,26 @@ class SiteConfig(BaseModel):
     timeout: Optional[int] = Field(default=None, description="单站点请求超时(秒)")
     # 抓取器自定义扩展参数（如 Pinterest 的 locale/分页）
     extra: dict = Field(default_factory=dict, description="抓取器自定义参数")
+
+
+class BrowserConfig(BaseModel):
+    """nodriver 浏览器自动化相关配置。"""
+    # 浏览器启动用户数据目录（持久化登录态），为空时每次临时
+    user_data_dir: str = Field(default="", description="浏览器用户数据目录(持久化登录态)")
+    # 浏览器是否无头（生产建议 False 以便用户手动登录）
+    headless: bool = Field(default=False, description="是否无头模式")
+    # 代理服务器地址，如 http://10.0.0.51:1072 ；为空则不使用代理
+    proxy: str = Field(default="", description="浏览器代理地址")
+    # 登录态（cookie）保存文件路径，为空则默认放在 user_data_dir 旁
+    session_file: str = Field(default="", description="登录态 cookie 保存文件")
+    # 浏览器可执行文件路径，为空则自动查找
+    browser_executable_path: str = Field(default="", description="浏览器可执行文件路径")
+    # 手动登录等待超时(秒)
+    login_timeout: int = Field(default=180, description="等待用户手动登录超时(秒)")
+    # 页面加载与滚动等待时间(秒)
+    page_load_wait: float = Field(default=3.0, description="页面加载后等待秒数")
+    scroll_times: int = Field(default=5, description="滚动加载次数")
+    scroll_pause: float = Field(default=1.5, description="每次滚动停顿秒数")
 
 
 class CrawlerConfig(BaseModel):
@@ -49,6 +78,7 @@ class CrawlerConfig(BaseModel):
                  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"),
         description="下载使用的 User-Agent",
     )
+    browser: BrowserConfig = Field(default_factory=BrowserConfig, description="浏览器自动化配置")
 
 
 class ComfyUIConfig(BaseModel):
@@ -79,6 +109,23 @@ class CoreConfig(BaseModel):
     crawler: CrawlerConfig = Field(default_factory=CrawlerConfig)
     comfyui: ComfyUIConfig = Field(default_factory=ComfyUIConfig)
     sites: List[SiteConfig] = Field(default_factory=list)
+
+    @classmethod
+    def default(cls) -> "CoreConfig":
+        """返回带一代默认站点（Pinterest 示例，使用浏览器后端）的配置。"""
+        return cls(
+            sites=[
+                SiteConfig(
+                    name="pinterest_demo",
+                    crawler_type=CrawlerType.PINTEREST_BROWSER,
+                    backend=CrawlerBackend.BROWSER,
+                    urls=[
+                        "https://jp.pinterest.com/pin/1028087421172953769/",
+                    ],
+                    extra={"locale": "jp"},
+                )
+            ]
+        )
 
     @classmethod
     def default(cls) -> "CoreConfig":

@@ -29,7 +29,8 @@
 |------|------|------|--------|
 | 配置 | `app/core/config` | 多站点抓取、图片库、ComfyUI 的 pydantic 配置模型 + 单例管理器 | 与 UI 的 AppConfig 独立，持久化于 `config/core_config.json` |
 | 图片库 | `app/core/image_library` | 本地图片存储、索引(`index.json`)、**防重复**（URL/哈希） | 仅依赖文件系统，不触网 |
-| 抓取 | `app/core/crawler` | 图片网站批量抓取，支持多站配置；一期实现 Pinterest | 网络通过可注入 `http_get` 解耦 |
+| 抓取 | `app/core/crawler` | 图片网站批量抓取，支持多站配置；一期实现 Pinterest（http 与浏览器两种后端） | 网络通过可注入 `http_get` 解耦；浏览器后端通过 `app/core/browser` 解耦 |
+| 浏览器 | `app/core/browser` | 基于 nodriver 真实浏览器自动化：代理、登录态保存/加载、Pinterest 登录助手、浏览器抓取 | 浏览器实例与 `http_get` 均可注入，便于测试 |
 | ComfyUI | `app/core/comfyui` | 调用 ComfyUI 工作流完成图生图（上传原图→替换 LoadImage→提交→取结果） | 网络通过可注入 `transport` 解耦 |
 | 编排 | `app/core/pipeline` | 串联 抓取→入库→图生图，提供进度回调 | 仅调度，不实现具体逻辑 |
 
@@ -57,8 +58,63 @@
 }
 ```
 
-一期已支持 `pinterest`（图片墙/画板 URL）。后续可通过 `crawler/factory.py`
-的 `register_crawler` 注册 unsplash、pixiv 等更多抓取器，无需改动其它模块。
+一期已支持两种 Pinterest 抓取后端：
+
+- `pinterest`（http 后端）：纯请求解析页面 JSON，轻量、无需浏览器，
+  但面对登录墙/反爬时可能拿不到数据。
+- `pinterest_browser`（浏览器后端）：用 **nodriver** 真实驱动浏览器打开页面、
+  滚动加载、读取渲染后的 DOM 图片地址，可绕过大部分反爬与登录限制，
+  且无需研究 Pinterest 私有 API。适合登录后才能访问的内容。
+
+后续可通过 `crawler/factory.py` 的 `register_crawler` 注册 unsplash、pixiv 等
+更多抓取器，无需改动其它模块。
+
+## 浏览器抓取（nodriver）与登录态
+
+`pinterest_browser` 通过 `app/core/browser` 模块驱动真实浏览器：
+
+- **代理**：在 `config/core_config.json` 的 `crawler.browser.proxy` 配置，
+  如 `http://10.0.0.51:1072`，启动浏览器时自动附加 `--proxy-server`。
+- **登录态保存/复用**：登录后浏览器数据持久化在 `browser.user_data_dir`，
+  同时 cookie 序列化到 `browser.session_file`。下次运行自动加载，无需重复登录。
+- **首次登录**：若检测到未登录（页面跳转到登录页），脚本会打开浏览器并
+  **提示用户手动输入 Pinterest 用户名和密码**；登录成功后自动保存登录态。
+
+浏览器相关配置（`crawler.browser`）字段：
+
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `user_data_dir` | `""` | 浏览器用户数据目录（持久化登录态），建议设置如 `libraries/browser_profile` |
+| `headless` | `false` | 是否无头（生产建议 `false` 以便手动登录） |
+| `proxy` | `""` | 浏览器代理地址 |
+| `session_file` | `""` | 登录态 cookie 保存文件（默认放在 user_data_dir 旁） |
+| `login_timeout` | `180` | 等待用户手动登录超时(秒) |
+| `page_load_wait` / `scroll_times` / `scroll_pause` | `3.0` / `5` / `1.5` | 页面加载等待、滚动加载次数与停顿 |
+
+配置示例（浏览器后端 + 代理）：
+
+```json
+{
+  "sites": [
+    {
+      "name": "pinterest_demo",
+      "crawler_type": "pinterest_browser",
+      "backend": "browser",
+      "enabled": true,
+      "urls": ["https://jp.pinterest.com/pin/1028087421172953769/"],
+      "extra": {"locale": "jp"}
+    }
+  ],
+  "crawler": {
+    "browser": {
+      "user_data_dir": "libraries/browser_profile",
+      "proxy": "http://10.0.0.51:1072",
+      "headless": false,
+      "login_timeout": 180
+    }
+  }
+}
+```
 
 # 使用方法
 

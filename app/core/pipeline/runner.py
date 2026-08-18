@@ -77,6 +77,8 @@ class Pipeline:
                 retry=cfg.crawler.retry,
                 user_agent=cfg.crawler.user_agent,
                 http_get=self._http_get,
+                browser_config=cfg.crawler.browser,
+                progress=self._progress,
             )
             self._progress("crawl", 0, 1, f"开始抓取站点: {site.name}")
             fetched = crawler.fetch_images()

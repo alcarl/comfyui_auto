@@ -6,9 +6,11 @@ from typing import Dict, Type
 from ..config.models import CrawlerType, SiteConfig
 from .base import BaseCrawler
 from .pinterest import PinterestCrawler
+from ..browser.pinterest_browser import PinterestBrowserCrawler
 
 _REGISTRY: Dict[str, Type[BaseCrawler]] = {
     CrawlerType.PINTEREST.value: PinterestCrawler,
+    CrawlerType.PINTEREST_BROWSER.value: PinterestBrowserCrawler,
     # 后续可在此注册更多抓取器：unsplash、pixiv 等
 }
 

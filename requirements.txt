@@ -42,3 +42,4 @@ urllib3==2.3.0
 watchdog==4.0.2
 websocket-client==1.8.0
 pytest==8.3.4
+nodriver==0.50.3
