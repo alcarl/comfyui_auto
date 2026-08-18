@@ -1,4 +1,4 @@
-"""真实抓取示例：用 nodriver 浏览器抓取 Pinterest 图片墙。
+r"""真实抓取示例：用 nodriver 浏览器抓取 Pinterest 图片墙。
 
 运行方式（需已激活 .venv，且已 pip install -r requirements.txt）：
     .venv\Scripts\python.exe examples/crawl_pinterest_browser.py
@@ -47,7 +47,7 @@ def main() -> None:
         )
         cfg.sites.append(site)
 
-    library = ImageLibrary(
+    library = ImageLibrary.resolve(
         root_dir=cfg.library.root_dir,
         library_name=cfg.crawler.output_library,
         dedupe_by_url=cfg.library.dedupe_by_url,
