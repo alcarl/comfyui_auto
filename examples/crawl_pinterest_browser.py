@@ -28,11 +28,12 @@ def main() -> None:
     mgr = CoreConfigManager()
     cfg = mgr.config
 
-    # 确保使用浏览器后端与代理（也可直接在 config/core_config.json 配置）
+    # 确保使用浏览器后端与代理（也可直接在 config/core_config.json 配置）。
+    # 浏览器使用固定 user_data_dir（默认 libraries/browser_profile）持久化
+    # 本地状态：登录一次后下次自动复用，无需再次登录。图片通过已打开的
+    # Chrome 在页面上下文内 fetch 获取，不走 crawler 的 http 下载。
     if not cfg.crawler.browser.proxy:
         cfg.crawler.browser.proxy = "http://10.0.0.51:1072"
-    if not cfg.crawler.browser.user_data_dir:
-        cfg.crawler.browser.user_data_dir = "libraries/browser_profile"
 
     # 选取/创建浏览器站点
     site = next((s for s in cfg.sites
@@ -61,19 +62,19 @@ def main() -> None:
         retry=cfg.crawler.retry,
         user_agent=cfg.crawler.user_agent,
         browser_config=cfg.crawler.browser,
-        progress=lambda stage, msg="": print(f"[{stage}] {msg}"),
+        progress=lambda stage, msg="": print(f"[{stage}] {msg}", flush=True),
     )
 
-    print("开始浏览器抓取（如未登录请在弹出的浏览器中手动登录）…")
+    print("开始浏览器抓取（如未登录请在弹出的浏览器中手动登录）…", flush=True)
     images = crawler.fetch_images()
-    print(f"抓取到 {len(images)} 张图片，正在写入本地图片库（按 URL 去重）…")
+    print(f"抓取到 {len(images)} 张图片，正在写入本地图片库（按 URL 去重）…", flush=True)
     added = 0
     for img in images:
         if library.add_image(img.data, source_url=img.url,
                              content_type=img.content_type,
                              site=img.site, source_page=img.source_page):
             added += 1
-    print(f"完成：新入库 {added} 张，图片库当前共 {library.count()} 张。")
+    print(f"完成：新入库 {added} 张，图片库当前共 {library.count()} 张。", flush=True)
 
 
 if __name__ == "__main__":

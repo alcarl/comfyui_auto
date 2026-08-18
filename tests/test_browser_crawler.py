@@ -30,7 +30,17 @@ class FakeTab:
     async def get_content(self):
         return self._html
 
-    async def evaluate(self, expr):
+    async def evaluate(self, expr, *args):
+        # 模拟浏览器上下文：返回 <img> 列表 或 fetch 取图的 base64
+        if "querySelectorAll" in expr:
+            return [
+                "https://i.pinimg.com/236x/aa/bb/cc/abc.jpg",
+                "https://i.pinimg.com/originals/11/22/33/xyz.jpg",
+            ]
+        if "fetch" in expr:
+            import base64
+            b64 = base64.b64encode(FAKE_IMG).decode()
+            return {"ok": True, "mime": "image/jpeg", "b64": b64}
         return self._html
 
     async def find(self, *a, **k):
@@ -48,6 +58,7 @@ class FakeBrowser:
 
     async def get(self, url):
         self.main_tab.url = url
+        # 登录检测访问首页（不含 /login）视为已登录
         return self.main_tab
 
     async def aclose(self):
@@ -82,11 +93,13 @@ class TestPinterestBrowserParser(unittest.TestCase):
         self.assertTrue(any("/originals/" in u for u in urls))
         self.assertTrue(any("/736x/" in u for u in urls))
 
-    def test_prefer_original(self):
-        ordered = PinterestBrowserCrawler.prefer_original([
+    def test_url_priority(self):
+        # originals 优先于 736x
+        urls = [
             "https://i.pinimg.com/736x/a.jpg",
             "https://i.pinimg.com/originals/a.jpg",
-        ])
+        ]
+        ordered = sorted(urls, key=PinterestBrowserCrawler._url_priority)
         self.assertTrue(ordered[0].endswith("/originals/a.jpg"))
 
 

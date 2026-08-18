@@ -38,6 +38,7 @@ class BrowserLauncher:
         self.config = config
         self._browser_factory = browser_factory
         self._browser = None
+        self._tmp_user_data_dir = None
 
     # ------------------------------------------------------------------ #
     # 上下文管理器
@@ -63,16 +64,34 @@ class BrowserLauncher:
         kwargs: dict = {
             "headless": config.headless,
         }
+        # user_data_dir：若用户未指定，使用唯一临时目录，避免连续/并发
+        # 固定 user_data_dir 持久化浏览器状态（含登录态）：登录一次后
+        # 下次启动自动复用，无需再次登录。为空时默认使用项目内固定目录。
         if config.user_data_dir:
-            kwargs["user_data_dir"] = config.user_data_dir
+            ud = config.user_data_dir
+        else:
+            ud = os.path.join("libraries", "browser_profile")
+        # 清理上次异常退出遗留的 SingletonLock，避免“已有实例占用”导致
+        # Chrome 无法连接 DevTools。
+        self._clear_stale_lock(ud)
+        kwargs["user_data_dir"] = ud
         if config.browser_executable_path:
             kwargs["browser_executable_path"] = config.browser_executable_path
 
-        browser_args: list = []
+        # 默认附加的稳定性参数：关闭沙箱与 GPU，规避 Windows 下
+        # “Failed to connect to browser” 的启动失败。
+        browser_args: list = [
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+        ]
         if config.proxy:
             browser_args.append(f"--proxy-server={config.proxy}")
-        if browser_args:
-            kwargs["browser_args"] = browser_args
+            # 关键：Chrome 的 DevTools 监听在 127.0.0.1，若不把回环地址
+            # 加入绕过列表，代理会把本地调试端口的连接也走代理，导致
+            # nodriver “Failed to connect to browser”。
+            browser_args.append("--proxy-bypass-list=<-loopback>")
+        kwargs["browser_args"] = browser_args
 
         self._browser = await factory(config, **kwargs)
         return self._browser
@@ -116,8 +135,21 @@ class BrowserLauncher:
             return False
 
     def _default_session_file(self) -> str:
-        base = self.config.user_data_dir or "."
+        # 登录态 cookie 固定保存到项目内（libraries/ 已被 gitignore 忽略），
+        # 与临时 user_data_dir 解耦，保证每次用新临时 profile 也能恢复登录态。
+        base = self.config.user_data_dir or os.path.join("libraries", "browser_session")
+        os.makedirs(base, exist_ok=True)
         return os.path.join(os.path.abspath(base), ".pinterest_session.dat")
+
+    @staticmethod
+    def _clear_stale_lock(user_data_dir: str) -> None:
+        """删除残留的 Chrome 单例锁，避免“Failed to connect to browser”。"""
+        lock = os.path.join(user_data_dir, "SingletonLock")
+        try:
+            if os.path.exists(lock):
+                os.remove(lock)
+        except OSError:
+            pass
 
     # ------------------------------------------------------------------ #
     # 真实启动函数（默认工厂，懒导入 nodriver 以便测试环境无需安装）

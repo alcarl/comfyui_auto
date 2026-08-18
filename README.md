@@ -73,25 +73,31 @@
 
 `pinterest_browser` 通过 `app/core/browser` 模块驱动真实浏览器：
 
+- **图片从浏览器页面直接获取**：不再经由 crawler 的 http 下载，而是用已打开的
+  Chrome 在页面 JS 上下文内 `fetch()` 图片字节（天然走浏览器代理，避免直连被墙），
+  再回传 base64。这最大限度减少研究 API / 反爬的复杂度。
 - **代理**：在 `config/core_config.json` 的 `crawler.browser.proxy` 配置，
-  如 `http://10.0.0.51:1072`，启动浏览器时自动附加 `--proxy-server`。
-- **登录态保存/复用**：登录后浏览器数据持久化在 `browser.user_data_dir`，
-  同时 cookie 序列化到 `browser.session_file`。下次运行自动加载，无需重复登录。
-- **首次登录**：若检测到未登录（页面跳转到登录页），脚本会打开浏览器并
+  如 `http://10.0.0.51:1072`，启动浏览器时自动附加 `--proxy-server`，
+  并把 `127.0.0.1`/回环地址加入 `--proxy-bypass-list`（否则本地 DevTools 会被代理拦截）。
+- **登录态保存/复用（登录一次后续免登录）**：浏览器使用**固定 `user_data_dir`**
+  （默认 `libraries/browser_profile`，已被 gitignore 忽略）持久化本地状态。
+  首次运行若检测到未登录，会弹出浏览器**提示用户手动输入 Pinterest 用户名和密码**，
+  登录成功后状态自动落盘，下次运行直接复用，无需再次登录。
+- **首次登录**：若检测到未登录（访问首页跳转到登录页），脚本会打开浏览器并
   **提示用户手动输入 Pinterest 用户名和密码**；登录成功后自动保存登录态。
 
 浏览器相关配置（`crawler.browser`）字段：
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
-| `user_data_dir` | `""` | 浏览器用户数据目录（持久化登录态），建议设置如 `libraries/browser_profile` |
+| `user_data_dir` | `libraries/browser_profile` | 固定浏览器用户数据目录，持久化登录态（登录一次后续免登录） |
 | `headless` | `false` | 是否无头（生产建议 `false` 以便手动登录） |
 | `proxy` | `""` | 浏览器代理地址 |
-| `session_file` | `""` | 登录态 cookie 保存文件（默认放在 user_data_dir 旁） |
+| `session_file` | `""` | 额外导出的 cookie 文件（默认放在 user_data_dir 旁） |
 | `login_timeout` | `180` | 等待用户手动登录超时(秒) |
 | `page_load_wait` / `scroll_times` / `scroll_pause` | `3.0` / `5` / `1.5` | 页面加载等待、滚动加载次数与停顿 |
 
-配置示例（浏览器后端 + 代理）：
+配置示例（浏览器后端 + 代理，登录态自动持久化）：
 
 ```json
 {
@@ -107,7 +113,6 @@
   ],
   "crawler": {
     "browser": {
-      "user_data_dir": "libraries/browser_profile",
       "proxy": "http://10.0.0.51:1072",
       "headless": false,
       "login_timeout": 180

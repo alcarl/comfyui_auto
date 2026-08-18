@@ -36,12 +36,13 @@ class BaseCrawler:
     def __init__(self, site: SiteConfig, timeout: int = 30,
                  max_concurrency: int = 4, retry: int = 2,
                  user_agent: str = "", http_get: Optional[HttpGet] = None,
-                 **_ignored):
+                 proxies: Optional[dict] = None, **_ignored):
         self.site = site
         self.timeout = timeout
         self.max_concurrency = max_concurrency or 1
         self.retry = retry
         self.user_agent = user_agent or "Mozilla/5.0"
+        self.proxies = proxies
         self._http_get = http_get or self._default_http_get
 
     # ------------------------------------------------------------------ #
@@ -52,7 +53,8 @@ class BaseCrawler:
         last_err: Optional[Exception] = None
         for _ in range(max(1, self.retry)):
             try:
-                resp = requests.get(url, headers=headers, timeout=self.timeout)
+                resp = requests.get(url, headers=headers, timeout=self.timeout,
+                                    proxies=self.proxies)
                 resp.raise_for_status()
                 return resp.content, resp.headers.get("Content-Type", "")
             except Exception as e:  # noqa: BLE001
