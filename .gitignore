@@ -45,3 +45,8 @@ Thumbs.db
 *.pptx
 *.ppt
 *.json
+
+# 运行时生成/产物（保留用户提供的示例工作流 krea2i2i.json）
+libraries/
+config/core_config.json
+!config/krea2i2i.json

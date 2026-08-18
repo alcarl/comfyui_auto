@@ -1,0 +1,2502 @@
+{
+  "id": "eca78d97-1eda-4dc5-b8d1-1b862c3c3814",
+  "revision": 0,
+  "last_node_id": 274,
+  "last_link_id": 418,
+  "nodes": [
+    {
+      "id": 22,
+      "type": "CLIPLoader",
+      "pos": [
+        4037.7250714170814,
+        877.4537218091186
+      ],
+      "size": [
+        331.4732567039696,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "label": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "label": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "CLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "clip_name": true,
+          "type": true,
+          "device": true
+        }
+      },
+      "widgets_values": [
+        "text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+        "krea2",
+        "default"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "VAELoader",
+      "pos": [
+        4037.9708599913,
+        1026.244249152868
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            24,
+            68
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "VAELoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "vae_name": true
+        }
+      },
+      "widgets_values": [
+        "qwen_image_vae.safetensors"
+      ]
+    },
+    {
+      "id": 48,
+      "type": "CLIPLoaderDisTorch2MultiGPU",
+      "pos": [
+        4076.621307150517,
+        1158.0792443099854
+      ],
+      "size": [
+        304,
+        202
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            71,
+            72
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-multigpu",
+        "ver": "2.6.4",
+        "Node name for S&R": "CLIPLoaderDisTorch2MultiGPU"
+      },
+      "widgets_values": [
+        "text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+        "krea2",
+        "cuda:1",
+        0,
+        "cpu",
+        "",
+        false
+      ]
+    },
+    {
+      "id": 28,
+      "type": "VAEEncode",
+      "pos": [
+        7314.591949398409,
+        674.9156611668506
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 92
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 24
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            76
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "VAEEncode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "Text_Translation_V2_Full",
+      "pos": [
+        4744.444760276067,
+        1632.5139264622492
+      ],
+      "size": [
+        400,
+        208
+      ],
+      "flags": {},
+      "order": 33,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "trans_text",
+          "type": "STRING",
+          "widget": {
+            "name": "trans_text"
+          },
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "string",
+          "type": "STRING",
+          "links": [
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "TFL-TFL/ComfyUI_Text_Translation",
+        "ver": "495f9773dd3651a366ebac664fc4b0f301e9b1b3",
+        "Node name for S&R": "Text_Translation_V2_Full"
+      },
+      "widgets_values": [
+        true,
+        "",
+        "Google",
+        "auto",
+        "中文(zh)",
+        "button_show"
+      ]
+    },
+    {
+      "id": 51,
+      "type": "KSamplerAdvanced",
+      "pos": [
+        6870.188799738451,
+        676.4032911167287
+      ],
+      "size": [
+        270,
+        546
+      ],
+      "flags": {},
+      "order": 36,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 88
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 80
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 81
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 77
+        },
+        {
+          "name": "noise_seed",
+          "type": "INT",
+          "widget": {
+            "name": "noise_seed"
+          },
+          "link": 95
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            78
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "disable",
+        692217139911354,
+        "randomize",
+        8,
+        1,
+        "euler",
+        "simple",
+        5,
+        8,
+        "disable"
+      ]
+    },
+    {
+      "id": 15,
+      "type": "easy showAnything",
+      "pos": [
+        4265.660375490316,
+        1493.4609175852747
+      ],
+      "size": [
+        329.69538721764957,
+        147.9038565840924
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "anything",
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 57
+        }
+      ],
+      "outputs": [
+        {
+          "label": "output",
+          "name": "output",
+          "type": "*",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 16,
+      "type": "Text_Translation_V2_Full",
+      "pos": [
+        4243.310639211837,
+        1695.0700172806837
+      ],
+      "size": [
+        400,
+        208
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "trans_text",
+          "type": "STRING",
+          "widget": {
+            "name": "trans_text"
+          },
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "string",
+          "type": "STRING",
+          "links": [
+            57
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "TFL-TFL/ComfyUI_Text_Translation",
+        "ver": "495f9773dd3651a366ebac664fc4b0f301e9b1b3",
+        "Node name for S&R": "Text_Translation_V2_Full"
+      },
+      "widgets_values": [
+        true,
+        "",
+        "Google",
+        "中文(zh)",
+        "English(en)",
+        "button_hide"
+      ]
+    },
+    {
+      "id": 18,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        4228.424526067468,
+        1973.081474362823
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 12,
+      "type": "StringConcatenate",
+      "pos": [
+        4711.457295652779,
+        1277.0289384590772
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string_a",
+          "type": "STRING",
+          "widget": {
+            "name": "string_a"
+          },
+          "link": 12
+        },
+        {
+          "name": "string_b",
+          "type": "STRING",
+          "widget": {
+            "name": "string_b"
+          },
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "StringConcatenate"
+      },
+      "widgets_values": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 31,
+      "type": "EmptyLatentImage",
+      "pos": [
+        6078.026032999,
+        1156.9491128942846
+      ],
+      "size": [
+        399.8477714945184,
+        155.0778250310425
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 25
+        },
+        {
+          "label": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 26
+        },
+        {
+          "label": "batch_size",
+          "name": "batch_size",
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "EmptyLatentImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "batch_size": true,
+          "width": true,
+          "height": true
+        }
+      },
+      "widgets_values": [
+        720,
+        1280,
+        1
+      ]
+    },
+    {
+      "id": 23,
+      "type": "SaveImage",
+      "pos": [
+        7170.85194828814,
+        849.9003051256013
+      ],
+      "size": [
+        335.0557868560322,
+        606.2956771100933
+      ],
+      "flags": {},
+      "order": 38,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 70
+        },
+        {
+          "label": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "image_urls",
+          "name": "images",
+          "type": "IMAGE"
+        },
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE"
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "filename_prefix": true
+        }
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 47,
+      "type": "VAEDecode",
+      "pos": [
+        7149.661714185938,
+        728.256667572056
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 37,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 78
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 68
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            70
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 57,
+      "type": "easy seed",
+      "pos": [
+        6873.368779981949,
+        507.0577620107875
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            94,
+            95
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy seed"
+      },
+      "widgets_values": [
+        300747829410557,
+        "randomize",
+        null
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [
+        6031.910191861176,
+        813.271294064875
+      ],
+      "size": [
+        490.16240972297965,
+        250.61751731411505
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 72
+        },
+        {
+          "label": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            75,
+            81
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "CLIPTextEncode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "text": true
+        }
+      },
+      "widgets_values": [
+        "(nsfw, nudity, bare breasts, nipples, areola, transparent clothing, see-through clothes, untied straps:1.4), (micro bikini, slingshot bikini, thong, string bikini, severe cleavage exposure, high-cut leg opening, t-back, g-string:1.3), underwear, lingerie, erotic, topless, bottomless, skin-on-skin creases, extreme skin exposure.\n\n(object merging, clipping, character blending with furniture, body parts fusing with background, structural melting:1.4), (glitched props, broken furniture, distorted table legs, clothing melting into environment:1.3), phantom limbs, extra legs, visual clipping artifacts, overlapping geometry, multi-layered body deformation.\n"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CLIPTextEncode",
+      "pos": [
+        6045.251856341982,
+        587.0486662633205
+      ],
+      "size": [
+        397.2403564453125,
+        88
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 71
+        },
+        {
+          "label": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "label": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            74,
+            80
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "CLIPTextEncode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "text": true
+        }
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "type": "ImageCaptionNode",
+      "pos": [
+        4607.322157302309,
+        627.1070618065223
+      ],
+      "size": [
+        400,
+        306
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "caption_text",
+          "type": "STRING",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "caption_list",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "prompt-assistant",
+        "ver": "2.0.6",
+        "Node name for S&R": "ImageCaptionNode"
+      },
+      "widgets_values": [
+        "joy3-500",
+        true,
+        "",
+        "",
+        "本地/../mod/Qwen3-VL-32B-Instruct-abliterated-v1.i1-Q4_K_M.gguf",
+        true,
+        283225054964040,
+        "randomize"
+      ]
+    },
+    {
+      "id": 29,
+      "type": "UNETLoader",
+      "pos": [
+        4182.92373303842,
+        696.8782166715799
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "unet_name",
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "label": "weight_dtype",
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            64
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "UNETLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "weight_dtype": true,
+          "unet_name": true
+        }
+      },
+      "widgets_values": [
+        "diffusion_models/krea2_turbo_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "Lora Loader (LoraManager)",
+      "pos": [
+        6525.935496085985,
+        1272.2516242647062
+      ],
+      "size": [
+        446.3064145220724,
+        693.3183602636418
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 64
+        },
+        {
+          "name": "clip",
+          "shape": 7,
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "lora_stack",
+          "shape": 7,
+          "type": "LORA_STACK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            87,
+            88
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "name": "trigger_words",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "loaded_loras",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-lora-manager",
+        "ver": "1.1.9",
+        "Node name for S&R": "Lora Loader (LoraManager)",
+        "__lm_widget_ids": [
+          "__lm_autocomplete_meta_text",
+          "text",
+          "loras"
+        ]
+      },
+      "widgets_values": [
+        {
+          "version": 1,
+          "textWidgetName": "text"
+        },
+        "<lora:krea2-masterpieces-v51:0.90> <lora:MoriiMee_Krea_epoch_10:0.40> <lora:test_krea2_1024_epoch10:0.50> <lora:test_krea2_1024_epoch20:1.05> <lora:test_krea2_1024_epoch30:0.75> <lora:test_krea2_1024:0.60> <lora:test_krea2_1024_old:0.10> <lora:test_krea2_epoch2:2.00> <lora:test_krea2_epoch10:0.50> <lora:test_krea2_1024_mask:0.50>",
+        [
+          {
+            "name": "test_krea2_1024",
+            "strength": "0.60",
+            "active": true,
+            "expanded": false,
+            "clipStrength": "0.60",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_1024_epoch10",
+            "strength": "0.50",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.50",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_1024_epoch20",
+            "strength": "1.05",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "1.05",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_1024_epoch30",
+            "strength": "0.75",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.75",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_1024_old",
+            "strength": "0.10",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.10",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_epoch2",
+            "strength": "2.00",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "2.00",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_epoch10",
+            "strength": "0.50",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.50",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "test_krea2_1024_mask",
+            "strength": "0.50",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.50",
+            "selected": true,
+            "locked": false
+          },
+          {
+            "name": "krea2-masterpieces-v51",
+            "strength": "0.90",
+            "active": true,
+            "expanded": false,
+            "clipStrength": "0.90",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "MoriiMee_Krea_epoch_10",
+            "strength": "0.40",
+            "active": true,
+            "expanded": false,
+            "clipStrength": "0.40",
+            "selected": false,
+            "locked": false
+          }
+        ]
+      ]
+    },
+    {
+      "id": 14,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        5975.983135950225,
+        1797.5483990921791
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "This is a hand-drawn Japanese-style anime illustration. A close-up portrait of a cyberpunk character, in the cutting-edge art style of Makinaru. Sharp and dynamic line art, prismatic and iridescent lighting reflections, high contrast composition, stylized chromatic aberration, with an intense and expressive gaze. Girl with large breasts, thick legs, full figure, big buttocks . Cinematic Still,(dynamic angle:3),(looking away:3), messy room,(film grain:3)."
+      ]
+    },
+    {
+      "id": 55,
+      "type": "BilateralFilterImage",
+      "pos": [
+        7287.123386624269,
+        524.3656801462388
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 91
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            92,
+            93
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-Image-Filters",
+        "ver": "bbb3fb0045461adf3602faeedaf40af57090d4e2",
+        "Node name for S&R": "BilateralFilterImage"
+      },
+      "widgets_values": [
+        9,
+        30,
+        20
+      ]
+    },
+    {
+      "id": 54,
+      "type": "MedianFilterImage",
+      "pos": [
+        7299.849200222893,
+        418.6303605661604
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 90
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            91
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-Image-Filters",
+        "ver": "bbb3fb0045461adf3602faeedaf40af57090d4e2",
+        "Node name for S&R": "MedianFilterImage"
+      },
+      "widgets_values": [
+        4
+      ]
+    },
+    {
+      "id": 50,
+      "type": "KSamplerAdvanced",
+      "pos": [
+        6557.731726757215,
+        654.906620127552
+      ],
+      "size": [
+        270,
+        546
+      ],
+      "flags": {},
+      "order": 34,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 87
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 74
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 75
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 76
+        },
+        {
+          "name": "noise_seed",
+          "type": "INT",
+          "widget": {
+            "name": "noise_seed"
+          },
+          "link": 94
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            77
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "enable",
+        49486956272933,
+        "randomize",
+        8,
+        1,
+        "euler",
+        "simple",
+        2,
+        5,
+        "enable"
+      ]
+    },
+    {
+      "id": 65,
+      "type": "CR Text Replace",
+      "pos": [
+        5622.3667381985415,
+        346.4012523695251
+      ],
+      "size": [
+        270,
+        198
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 99
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "*",
+          "links": [
+            100
+          ]
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Text Replace"
+      },
+      "widgets_values": [
+        "Photograph of",
+        "In this anime scene,",
+        "shallow depth of field",
+        "",
+        "photograph",
+        "anime illustration"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "easy showAnything",
+      "pos": [
+        5087.662152638194,
+        688.8685219493659
+      ],
+      "size": [
+        793.7610003857467,
+        285.6275113455463
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "anything",
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "label": "output",
+          "name": "output",
+          "type": "*",
+          "links": [
+            99
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "In this anime-style illustration, a young woman stands in front of a wooden fence in a vibrant green pasture. She has short black hair with bangs and wears a white t-shirt under an open red and black checkered shirt. Her blue jeans are loose and slightly frayed at the bottom, and she wears tan ankle boots with white socks. She carries a green backpack on her right shoulder and has her left arm raised, with her hand open and fingers slightly spread. Her mouth is slightly open, and her eyes are directed slightly to the left, with a neutral expression.\n\nIn the background, a brown horse grazes on the green grass, partially obscured by the fence. Beyond the fence, the pasture extends to a hill covered in dense green trees under a clear blue sky. The grass in the foreground is dark green and slightly patchy, with some dirt visible around her boots. The fence is dark brown, with vertical planks and a slight shadow cast on the ground. The overall color palette is bright and natural, with a strong emphasis on green and blue hues. The composition is balanced, with the young woman positioned slightly to the right of the center and the horse to the left. There are no visible watermarks or compression artifacts."
+      ]
+    },
+    {
+      "id": 11,
+      "type": "AddTextSuffix",
+      "pos": [
+        4846.389393699396,
+        1092.9650263332007
+      ],
+      "size": [
+        210,
+        95.11951494641096
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "texts",
+          "type": "STRING",
+          "widget": {
+            "name": "texts"
+          },
+          "link": 10
+        },
+        {
+          "name": "suffix",
+          "type": "STRING",
+          "widget": {
+            "name": "suffix"
+          },
+          "link": 100
+        }
+      ],
+      "outputs": [
+        {
+          "name": "texts",
+          "type": "STRING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "AddTextSuffix"
+      },
+      "widgets_values": [
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 4,
+      "type": "easy showAnything",
+      "pos": [
+        5138.079617900805,
+        1105.2094243624924
+      ],
+      "size": [
+        823.6412896056631,
+        583.1316949256304
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "anything",
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "label": "output",
+          "name": "output",
+          "type": "*",
+          "links": [
+            4,
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "(An anime illustration with a well-proportioned, beautifully defined large anime head that creates a perfectly natural 1:6 head-to-body ratio:1.3).\n(An anime illustration of an incredibly tall, towering giantess with an overwhelmingly massive, giant-sized heavy build, standing with a natural posture where gravity completely dictates her form. To completely obliterate any hourglass waistline, her entire chassis possesses a massive weight and immense physical thickness from front to back. Her waist, midsection, and abdomen are exceptionally bulky, solid, and thick, forming a perfectly straight, wide, blocky column of heavy flesh that completely eliminates any narrow lines, making her midsection wider than her shoulders and seamlessly bridging into her gigantic, ultra-wide expanded pelvis. Her arms, shoulders, and limbs are incredibly thick, heavy-set, and plump, characterized entirely by smooth, soft, and round curves with absolutely zero muscle lines. Her lower body is anchored by colossal, sweeping heavy thighs and immense, hyper-voluptuous, titan-sized buttocks that propped up and jut out heavily, showcasing a massive, highly defined, and explosive outward protrusion. Her upper body features a pair of reality-warping, monumental, utterly gargantuan cosmic-sized breasts that scale up aggressively to an impossible, cataclysmic level to dominate over 88% of her upper silhouette. Their protrusion depth is completely physics-defying, extending extremely far forward before immediately plunging vertically downward like heavy avalanches under their own immense, crushing weight, forming a distinct, massive low-hanging teardrop shape that completely blankets, overlaps, and rests heavily directly on top of her thick, soft protruding abdomen. This monumental upper body volume creates a titanic, deeply sagging low-slung curvature that hangs heavily towards the ground with a profound gravitational pull, creating a deep, dark crease and a pronounced skin-on-skin folding shadow underneath where they physically meet and deeply cover her wide, blocky waistline, fully blocking the view of her stomach. Her skin is high-density, perfectly smooth and taut, without any muscle lines, focusing entirely on a clean, explosive, hyper-voluptuous stylized silhouette with massive thickness and weight.:1.5)\n\nThe fabric of the clothing is completely matte and non-reflective with zero white specular highlights. Any printed pattern or texture on the outfit remains solid, continuous, and unbroken, naturally conforming to the massive, colossal volumetric shape and immense three-dimensional scale of her large bust and upper body without any graphic fading.\n\n\nAn unbroken, 100% opaque, completely matte fabric material layer directly covers, wraps, and fully encloses more than 50% of her entire physical frame and torso. This material layer securely masks the upper and lower boundaries of her massive chest, completely sealing the cleavage and upper abdomen from skin exposure. The fabric layer maintains an expansive, solid surface area that extends broad and wide across her entire midsection and bulky lower body, ensuring heavy, high-density physical fabric coverage over her voluminous shape with clean, crisp lines, completely matching the original fabric's clean color tones and native texture styles with zero random pattern generation. The entire image is completely clean and void of any text artifacts, rendering all background boards as blank, flat, and solid minimalist color fields.\n\nThe scene depicts exactly one single solitary woman with an exceptionally beautiful and detailed anime face, exhibiting a completely natural averted gaze as she looks away from the camera, focused intently on her surroundings with a serene and candid expression, ensuring absolutely zero eye contact with the viewer.\n\nThe background environment and all scenery elements are beautifully rendered in a highly detailed, professional anime scene illustration style. The nearby props and textures feature rich, clean 2D artistic details, crisp ink line art, and atmospheric lighting that casts natural, soft anime-style shadows. The colors are vibrant and harmoniously blended, creating a visually rich, deep, and beautifully layered anime aesthetic that perfectly complements the character with premium production-level premium quality.\nIn this anime-style illustration, a young woman stands in front of a wooden fence in a vibrant green pasture. She has short black hair with bangs and wears a white t-shirt under an open red and black checkered shirt. Her blue jeans are loose and slightly frayed at the bottom, and she wears tan ankle boots with white socks. She carries a green backpack on her right shoulder and has her left arm raised, with her hand open and fingers slightly spread. Her mouth is slightly open, and her eyes are directed slightly to the left, with a neutral expression.\n\nIn the background, a brown horse grazes on the green grass, partially obscured by the fence. Beyond the fence, the pasture extends to a hill covered in dense green trees under a clear blue sky. The grass in the foreground is dark green and slightly patchy, with some dirt visible around her boots. The fence is dark brown, with vertical planks and a slight shadow cast on the ground. The overall color palette is bright and natural, with a strong emphasis on green and blue hues. The composition is balanced, with the young woman positioned slightly to the right of the center and the horse to the left. There are no visible watermarks or compression artifacts."
+      ]
+    },
+    {
+      "id": 24,
+      "type": "PreviewImage",
+      "pos": [
+        7122.136475629993,
+        64.83717409939405
+      ],
+      "size": [
+        285.39272880036197,
+        326.7151163692308
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 34,
+      "type": "LayerUtility: ImageScaleByAspectRatio V2",
+      "pos": [
+        6569.968815340326,
+        137.8409744215519
+      ],
+      "size": [
+        276.034765625,
+        330
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 417
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            8,
+            20,
+            90
+          ]
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "original_size",
+          "type": "BOX",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            22,
+            25
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            26
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_layerstyle",
+        "ver": "2.0.40",
+        "Node name for S&R": "LayerUtility: ImageScaleByAspectRatio V2"
+      },
+      "widgets_values": [
+        "original",
+        1,
+        1,
+        "letterbox",
+        "lanczos",
+        "8",
+        "longest",
+        1440,
+        "#000000"
+      ],
+      "color": "rgba(38, 73, 116, 0.7)"
+    },
+    {
+      "id": 13,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        7507.4745168713325,
+        1441.3754371742464
+      ],
+      "size": [
+        407.2135867492534,
+        543.2600444865125
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "(An anime illustration with a well-proportioned, beautifully defined large anime head that creates a perfectly natural 1:6 head-to-body ratio:1.3).\n(An anime illustration of an incredibly tall, towering giantess with an overwhelmingly massive, giant-sized heavy build, standing with a natural posture where gravity completely dictates her form. To completely obliterate any hourglass waistline, her entire chassis possesses a massive weight and immense physical thickness from front to back. Her waist, midsection, and abdomen are exceptionally bulky, solid, and thick, forming a perfectly straight, wide, blocky column of heavy flesh that completely eliminates any narrow lines, making her midsection wider than her shoulders and seamlessly bridging into her gigantic, ultra-wide expanded pelvis. Her arms, shoulders, and limbs are incredibly thick, heavy-set, and plump, characterized entirely by smooth, soft, and round curves with absolutely zero muscle lines. Her lower body is anchored by colossal, sweeping heavy thighs and immense, hyper-voluptuous, titan-sized buttocks that propped up and jut out heavily, showcasing a massive, highly defined, and explosive outward protrusion. Her upper body features a pair of reality-warping, monumental, utterly gargantuan cosmic-sized breasts that scale up aggressively to an impossible, cataclysmic level to dominate over 88% of her upper silhouette. Their protrusion depth is completely physics-defying, extending extremely far forward before immediately plunging vertically downward like heavy avalanches under their own immense, crushing weight, forming a distinct, massive low-hanging teardrop shape that completely blankets, overlaps, and rests heavily directly on top of her thick, soft protruding abdomen. This monumental upper body volume creates a titanic, deeply sagging low-slung curvature that hangs heavily towards the ground with a profound gravitational pull, creating a deep, dark crease and a pronounced skin-on-skin folding shadow underneath where they physically meet and deeply cover her wide, blocky waistline, fully blocking the view of her stomach. Her skin is high-density, perfectly smooth and taut, without any muscle lines, focusing entirely on a clean, explosive, hyper-voluptuous stylized silhouette with massive thickness and weight.:1.5)\n\nThe fabric of the clothing is completely matte and non-reflective with zero white specular highlights. Any printed pattern or texture on the outfit remains solid, continuous, and unbroken, naturally conforming to the massive, colossal volumetric shape and immense three-dimensional scale of her large bust and upper body without any graphic fading.\n\n\nAn unbroken, 100% opaque, completely matte fabric material layer directly covers, wraps, and fully encloses more than 50% of her entire physical frame and torso. This material layer securely masks the upper and lower boundaries of her massive chest, completely sealing the cleavage and upper abdomen from skin exposure. The fabric layer maintains an expansive, solid surface area that extends broad and wide across her entire midsection and bulky lower body, ensuring heavy, high-density physical fabric coverage over her voluminous shape with clean, crisp lines, completely matching the original fabric's clean color tones and native texture styles with zero random pattern generation. The entire image is completely clean and void of any text artifacts, rendering all background boards as blank, flat, and solid minimalist color fields.\n\nThe scene depicts exactly one single solitary woman with an exceptionally beautiful and detailed anime face, exhibiting a completely natural averted gaze as she looks away from the camera, focused intently on her surroundings with a serene and candid expression, ensuring absolutely zero eye contact with the viewer.\n\nThe background environment and all scenery elements are beautifully rendered in a highly detailed, professional anime scene illustration style. The nearby props and textures feature rich, clean 2D artistic details, crisp ink line art, and atmospheric lighting that casts natural, soft anime-style shadows. The colors are vibrant and harmoniously blended, creating a visually rich, deep, and beautifully layered anime aesthetic that perfectly complements the character with premium production-level premium quality.\n"
+      ]
+    },
+    {
+      "id": 25,
+      "type": "easy showAnything",
+      "pos": [
+        6992.480642461189,
+        1506.9130236191022
+      ],
+      "size": [
+        465.81436408397144,
+        418.9984045269987
+      ],
+      "flags": {},
+      "order": 35,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "anything",
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "label": "output",
+          "name": "output",
+          "type": "*",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 56,
+      "type": "PreviewImage",
+      "pos": [
+        7673.3525565239515,
+        398.87920270893864
+      ],
+      "size": [
+        285.39272880036197,
+        326.7151163692308
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 93
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 26,
+      "type": "easy showAnything",
+      "pos": [
+        7452.301643249589,
+        83.2389306620841
+      ],
+      "size": [
+        343.5251379825829,
+        223.3207724271254
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "anything",
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "label": "output",
+          "name": "output",
+          "type": "*",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "816"
+      ]
+    },
+    {
+      "id": 85,
+      "type": "FeatherMask",
+      "pos": [
+        8252.264046220651,
+        830.7962129743381
+      ],
+      "size": [
+        270,
+        130
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 127
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            416
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "FeatherMask",
+        "node_id": "FeatherMask"
+      },
+      "widgets_values": [
+        4,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 83,
+      "type": "GrowMask",
+      "pos": [
+        8256.947257702166,
+        1022.8757912080907
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 126
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            127
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "GrowMask",
+        "node_id": "GrowMask"
+      },
+      "widgets_values": [
+        8,
+        true
+      ]
+    },
+    {
+      "id": 27,
+      "type": "LoadImage",
+      "pos": [
+        7533.642563239355,
+        830.5931598265117
+      ],
+      "size": [
+        380.32465192181553,
+        525.3265577689181
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "label": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            133,
+            415
+          ]
+        },
+        {
+          "label": "MASK",
+          "name": "MASK",
+          "type": "MASK"
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "widget_ue_connectable": {
+          "image": true,
+          "upload": true
+        }
+      },
+      "widgets_values": [
+        "01efb37912b18b59950f68ddcce790b2.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 62,
+      "type": "PreviewImage",
+      "pos": [
+        7919.949724944131,
+        859.7325917308309
+      ],
+      "size": [
+        357.32877660187614,
+        501.7239024684741
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 418
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 86,
+      "type": "RapidOCRTextMask",
+      "pos": [
+        8331.903190730962,
+        1176.2166025703164
+      ],
+      "size": [
+        307.9,
+        222
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 133
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            126
+          ]
+        },
+        {
+          "name": "detections_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "maomaozi/comfyui-dsocr-bbox",
+        "ver": "8a34d634f456e7d976a4030b3d164524362c2c6a",
+        "Node name for S&R": "RapidOCRTextMask"
+      },
+      "widgets_values": [
+        "balanced",
+        0.35,
+        8,
+        "polygon",
+        "auto",
+        0,
+        false
+      ]
+    },
+    {
+      "id": 272,
+      "type": "INPAINT_MaskedFill",
+      "pos": [
+        8053.002035530691,
+        635.7809138789373
+      ],
+      "size": [
+        270,
+        102
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 415
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 416
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            417,
+            418
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-inpaint-nodes",
+        "ver": "1.4.3",
+        "Node name for S&R": "INPAINT_MaskedFill"
+      },
+      "widgets_values": [
+        "navier-stokes",
+        1
+      ]
+    }
+  ],
+  "links": [
+    [
+      4,
+      4,
+      0,
+      2,
+      1,
+      "STRING"
+    ],
+    [
+      6,
+      11,
+      0,
+      4,
+      0,
+      "STRING"
+    ],
+    [
+      7,
+      9,
+      0,
+      8,
+      0,
+      "STRING"
+    ],
+    [
+      8,
+      34,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      9,
+      4,
+      0,
+      10,
+      0,
+      "STRING"
+    ],
+    [
+      10,
+      12,
+      0,
+      11,
+      0,
+      "STRING"
+    ],
+    [
+      12,
+      15,
+      0,
+      12,
+      0,
+      "STRING"
+    ],
+    [
+      13,
+      13,
+      0,
+      12,
+      1,
+      "STRING"
+    ],
+    [
+      15,
+      18,
+      0,
+      16,
+      0,
+      "STRING"
+    ],
+    [
+      20,
+      34,
+      0,
+      24,
+      0,
+      "IMAGE"
+    ],
+    [
+      21,
+      10,
+      0,
+      25,
+      0,
+      "STRING"
+    ],
+    [
+      22,
+      34,
+      3,
+      26,
+      0,
+      "INT"
+    ],
+    [
+      24,
+      19,
+      0,
+      28,
+      1,
+      "VAE"
+    ],
+    [
+      25,
+      34,
+      3,
+      31,
+      0,
+      "INT"
+    ],
+    [
+      26,
+      34,
+      4,
+      31,
+      1,
+      "INT"
+    ],
+    [
+      57,
+      16,
+      0,
+      15,
+      0,
+      "STRING"
+    ],
+    [
+      64,
+      29,
+      0,
+      21,
+      0,
+      "MODEL"
+    ],
+    [
+      68,
+      19,
+      0,
+      47,
+      1,
+      "VAE"
+    ],
+    [
+      70,
+      47,
+      0,
+      23,
+      0,
+      "IMAGE"
+    ],
+    [
+      71,
+      48,
+      0,
+      2,
+      0,
+      "CLIP"
+    ],
+    [
+      72,
+      48,
+      0,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      74,
+      2,
+      0,
+      50,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      75,
+      3,
+      0,
+      50,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      76,
+      28,
+      0,
+      50,
+      3,
+      "LATENT"
+    ],
+    [
+      77,
+      50,
+      0,
+      51,
+      3,
+      "LATENT"
+    ],
+    [
+      78,
+      51,
+      0,
+      47,
+      0,
+      "LATENT"
+    ],
+    [
+      80,
+      2,
+      0,
+      51,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      81,
+      3,
+      0,
+      51,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      87,
+      21,
+      0,
+      50,
+      0,
+      "MODEL"
+    ],
+    [
+      88,
+      21,
+      0,
+      51,
+      0,
+      "MODEL"
+    ],
+    [
+      90,
+      34,
+      0,
+      54,
+      0,
+      "IMAGE"
+    ],
+    [
+      91,
+      54,
+      0,
+      55,
+      0,
+      "IMAGE"
+    ],
+    [
+      92,
+      55,
+      0,
+      28,
+      0,
+      "IMAGE"
+    ],
+    [
+      93,
+      55,
+      0,
+      56,
+      0,
+      "IMAGE"
+    ],
+    [
+      94,
+      57,
+      0,
+      50,
+      4,
+      "INT"
+    ],
+    [
+      95,
+      57,
+      0,
+      51,
+      4,
+      "INT"
+    ],
+    [
+      99,
+      8,
+      0,
+      65,
+      0,
+      "STRING"
+    ],
+    [
+      100,
+      65,
+      0,
+      11,
+      1,
+      "STRING"
+    ],
+    [
+      126,
+      86,
+      0,
+      83,
+      0,
+      "MASK"
+    ],
+    [
+      127,
+      83,
+      0,
+      85,
+      0,
+      "MASK"
+    ],
+    [
+      133,
+      27,
+      0,
+      86,
+      0,
+      "IMAGE"
+    ],
+    [
+      415,
+      27,
+      0,
+      272,
+      0,
+      "IMAGE"
+    ],
+    [
+      416,
+      85,
+      0,
+      272,
+      1,
+      "MASK"
+    ],
+    [
+      417,
+      272,
+      0,
+      34,
+      0,
+      "IMAGE"
+    ],
+    [
+      418,
+      272,
+      0,
+      62,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "模型、反推、Controlnet",
+      "bounding": [
+        4026.6012921202064,
+        545.7154405591186,
+        661.554443359375,
+        884.3453369140625
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "用户输入",
+      "bounding": [
+        6020.964739326291,
+        305.7237878743025,
+        472.3494873046875,
+        943.7537231445312
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "提示词处理",
+      "bounding": [
+        4696.877186285246,
+        546.0405138013061,
+        839.7831420898438,
+        1001.4078979492188
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "提示词、宽高",
+      "bounding": [
+        5549.006931768645,
+        546.0639513013061,
+        415.3791198730469,
+        1002.1498413085938
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.3310000000000004,
+      "offset": [
+        -6988.804522098399,
+        -704.86136062971
+      ]
+    },
+    "anomalous_hashes": {
+      "19_qwen_image_vae.safetensors": {
+        "hash": "",
+        "size": 253806246
+      },
+      "29_diffusion_models/krea2_turbo_int8_convrot.safetensors": {
+        "hash": "",
+        "size": 13492686496
+      }
+    },
+    "frontendVersion": "1.45.20",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
