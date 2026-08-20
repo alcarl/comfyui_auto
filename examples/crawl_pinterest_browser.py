@@ -34,6 +34,10 @@ def main() -> None:
     # Chrome 在页面上下文内 fetch 获取，不走 crawler 的 http 下载。
     if not cfg.crawler.browser.proxy:
         cfg.crawler.browser.proxy = "http://10.0.0.51:1072"
+    # 弹出登录框后等待用户手动登录的超时（秒）：循环检查登录框是否消失，
+    # 避免密码未输完就被判定超时。
+    if not cfg.crawler.browser.login_timeout or cfg.crawler.browser.login_timeout > 60:
+        cfg.crawler.browser.login_timeout = 60
 
     # 选取/创建浏览器站点
     site = next((s for s in cfg.sites
@@ -68,11 +72,17 @@ def main() -> None:
     print("开始浏览器抓取（如未登录请在弹出的浏览器中手动登录）…", flush=True)
     images = crawler.fetch_images()
     print(f"抓取到 {len(images)} 张图片，正在写入本地图片库（按 URL 去重）…", flush=True)
+
+    def _ext_of(ctype: str) -> str:
+        mapping = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+                   "image/gif": "gif", "image/avif": "avif", "image/bmp": "bmp"}
+        return mapping.get((ctype or "").split(";")[0].strip().lower(), "jpg")
+
     added = 0
     for img in images:
-        if library.add_image(img.data, source_url=img.url,
-                             content_type=img.content_type,
-                             site=img.site, source_page=img.source_page):
+        record = library.add_image(img.data, source_url=img.url,
+                                   site=img.site, ext=_ext_of(img.content_type))
+        if record is not None:
             added += 1
     print(f"完成：新入库 {added} 张，图片库当前共 {library.count()} 张。", flush=True)
 

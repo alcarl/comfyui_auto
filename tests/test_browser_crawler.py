@@ -23,16 +23,17 @@ FAKE_IMG = b"\x89PNG" + b"\x00" * 64
 
 
 class FakeTab:
-    def __init__(self, url="", html=SAMPLE_PAGE):
+    def __init__(self, url="", html=SAMPLE_PAGE, logged_in=True):
         self.url = url
         self._html = html
+        self._logged_in = logged_in
 
     async def get_content(self):
         return self._html
 
-    async def evaluate(self, expr, *args):
+    async def evaluate(self, expr, *args, **kwargs):
         # 模拟浏览器上下文：返回 <img> 列表 或 fetch 取图的 base64
-        if "querySelectorAll" in expr:
+        if "querySelectorAll('img')" in expr:
             return [
                 "https://i.pinimg.com/236x/aa/bb/cc/abc.jpg",
                 "https://i.pinimg.com/originals/11/22/33/xyz.jpg",
@@ -41,6 +42,11 @@ class FakeTab:
             import base64
             b64 = base64.b64encode(FAKE_IMG).decode()
             return {"ok": True, "mime": "image/jpeg", "b64": b64}
+        # 登录表单检测（auth.wait_for_login 用 email/password 输入框）：
+        # 已登录则返回 False（无表单），未登录返回 True
+        if 'input[type="email"]' in expr or "input#email" in expr \
+                or "registerFormSubmitButton" in expr:
+            return not self._logged_in
         return self._html
 
     async def find(self, *a, **k):
@@ -49,7 +55,7 @@ class FakeTab:
 
 class FakeBrowser:
     def __init__(self, logged_in=True):
-        self.main_tab = FakeTab()
+        self.main_tab = FakeTab(logged_in=logged_in)
         self.tabs = [self.main_tab]
         self._logged_in = logged_in
         self.closed = False
@@ -57,8 +63,14 @@ class FakeBrowser:
         self.cookies_loaded = False
 
     async def get(self, url):
-        self.main_tab.url = url
-        # 登录检测访问首页（不含 /login）视为已登录
+        # 登录检测：访问 /login/ 时，若已登录会被重定向回首页（URL 不含 /login）
+        if "/login/" in url:
+            if self._logged_in:
+                self.main_tab.url = "https://www.pinterest.com/"
+            else:
+                self.main_tab.url = url
+        else:
+            self.main_tab.url = url
         return self.main_tab
 
     async def aclose(self):

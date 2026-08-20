@@ -71,6 +71,14 @@ class BrowserLauncher:
             ud = config.user_data_dir
         else:
             ud = os.path.join("libraries", "browser_profile")
+        # 使用绝对路径，避免当前工作目录变化导致 Chrome 找不到/写不了目录。
+        ud = os.path.abspath(ud)
+        # 必须先创建目录：Chrome 不会自动创建多层 user_data_dir，
+        # 否则弹出“无法对其数据目录执行读写操作”。
+        try:
+            os.makedirs(ud, exist_ok=True)
+        except OSError as e:
+            raise RuntimeError(f"无法创建浏览器数据目录 {ud}: {e}") from e
         # 清理上次异常退出遗留的 SingletonLock，避免“已有实例占用”导致
         # Chrome 无法连接 DevTools。
         self._clear_stale_lock(ud)

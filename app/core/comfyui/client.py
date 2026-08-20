@@ -204,14 +204,33 @@ class ComfyUIClient:
     # ------------------------------------------------------------------ #
     def img2img(self, image_path: str,
                 workflow_path: Optional[str] = None,
-                output_dir: Optional[str] = None) -> List[dict]:
+                output_dir: Optional[str] = None,
+                include_preview: bool = False,
+                skip_existing: bool = True) -> List[dict]:
         """对单张本地图片执行图生图，返回生成的图片信息列表。
 
         :param image_path: 本地原图路径
         :param workflow_path: 工作流路径（可选，覆盖配置）
         :param output_dir: 生成图片保存目录（可选）
+        :param include_preview: 是否同时返回 PreviewImage 等临时预览节点的输出。
+            默认 False（仅保留 SaveImage 正式输出），避免下载一堆临时预览图。
+        :param skip_existing: 提交工作流前若输出文件已存在则跳过，避免重复生成。
+            默认 True。输出文件名与输入图片保持一致（基于输入文件名）。
         :return: [{"filename":..., "data": b"...", "node_id":...}, ...]
+                 若因输出已存在而跳过，返回空列表。
         """
+        # 目标输出文件名与输入图片保持一致（去掉输入扩展名，保留原名）。
+        input_stem = os.path.splitext(os.path.basename(image_path))[0]
+
+        # 若需要落盘，先检查输出文件是否已存在；已存在则跳过，不再提交工作流。
+        if output_dir and skip_existing:
+            os.makedirs(output_dir, exist_ok=True)
+            existing = {os.path.join(output_dir, f)
+                        for f in os.listdir(output_dir)}
+            if any(os.path.join(output_dir, f"{input_stem}.{ext}") in existing
+                   for ext in ("png", "jpg", "jpeg", "webp")):
+                return []
+
         # 1. 上传原图
         upload_resp = self.transport.upload_image(image_path)
         uploaded_name = upload_resp.get("name") or os.path.basename(image_path)
@@ -224,25 +243,38 @@ class ComfyUIClient:
         if "nodes" in wf:
             wf = self.transport.to_api_format(wf)
 
-        # 4. 提交 prompt
+        # 4. 从工作流中识别 SaveImage 节点（白名单），用于过滤非正式输出。
+        save_nodes = {
+            nid for nid, node in wf.items()
+            if isinstance(node, dict) and node.get("class_type") == "SaveImage"
+        }
+
+        # 5. 提交 prompt
         client_id = self.config.client_id or f"client-{uuid.uuid4().hex[:8]}"
         prompt_resp = self.transport.post_prompt(wf, client_id)
         prompt_id = prompt_resp.get("prompt_id")
         if not prompt_id:
             raise RuntimeError(f"提交 prompt 失败: {prompt_resp}")
 
-        # 4. 等待并获取结果
+        # 6. 等待并获取结果
         history = self._wait_history(prompt_id)
-        outputs = self._extract_outputs(history, prompt_id)
+        outputs = self._extract_outputs(
+            history, prompt_id,
+            node_ids=None if include_preview else save_nodes)
 
-        # 5. 落盘（可选）
+        # 7. 落盘：输出文件名与输入图片保持一致（多个输出时附加序号）
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
             for i, out in enumerate(outputs):
-                if out.get("data"):
-                    fname = out.get("filename") or f"output_{i}.png"
-                    with open(os.path.join(output_dir, fname), "wb") as f:
-                        f.write(out["data"])
+                if not out.get("data"):
+                    continue
+                ext = os.path.splitext(out.get("filename") or "")[1] or ".png"
+                fname = f"{input_stem}{ext}"
+                if len(outputs) > 1:
+                    fname = f"{input_stem}_{i}{ext}"
+                with open(os.path.join(output_dir, fname), "wb") as f:
+                    f.write(out["data"])
+                out["filename"] = fname
         return outputs
 
     def _wait_history(self, prompt_id: str) -> dict:
@@ -253,10 +285,17 @@ class ComfyUIClient:
         # 回退：轮询 history
         import time
         deadline = time.time() + self.config.timeout
+        last_notice = 0.0
         while time.time() < deadline:
             hist = self.transport.get_history(prompt_id)
             if prompt_id in hist:
                 return hist
+            # 每 20 秒打印一次等待提示，避免界面看起来“卡死”
+            now = time.time()
+            if now - last_notice >= 20:
+                last_notice = now
+                print(f"[comfyui] 仍在等待出图（已等 {int(now - (deadline - self.config.timeout))}s）…",
+                      flush=True)
             time.sleep(1.0)
         raise TimeoutError(f"等待 ComfyUI 出图超时: {prompt_id}")
 
@@ -273,15 +312,22 @@ class ComfyUIClient:
         except Exception:  # noqa: BLE001
             return False
 
-    def _extract_outputs(self, history: dict, prompt_id: str) -> List[dict]:
-        """从 history 结果中提取 SaveImage 节点的图片字节。
+    def _extract_outputs(self, history: dict, prompt_id: str,
+                         node_ids: Optional[set] = None) -> List[dict]:
+        """从 history 结果中提取节点的图片字节。
 
         生成图片通常不内联 base64，需通过 /view 接口下载（transport.get_image）。
+
+        :param node_ids: 节点 id 白名单（字符串集合）；None 表示不过滤，
+            否则只保留白名单内节点的图片，便于过滤掉 PreviewImage 等
+            临时预览节点产生的不需要文件。
         """
         results: List[dict] = []
         entry = history.get(prompt_id, {})
         outputs = entry.get("outputs", {})
         for node_id, out in outputs.items():
+            if node_ids is not None and str(node_id) not in node_ids:
+                continue
             images = out.get("images", [])
             for img in images:
                 item: Dict[str, Any] = {

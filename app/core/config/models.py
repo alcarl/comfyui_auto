@@ -63,8 +63,8 @@ class BrowserConfig(BaseModel):
     login_timeout: int = Field(default=180, description="等待用户手动登录超时(秒)")
     # 页面加载与滚动等待时间(秒)
     page_load_wait: float = Field(default=3.0, description="页面加载后等待秒数")
-    scroll_times: int = Field(default=5, description="滚动加载次数")
-    scroll_pause: float = Field(default=1.5, description="每次滚动停顿秒数")
+    scroll_times: int = Field(default=10, description="滚动加载次数")
+    scroll_pause: float = Field(default=5.0, description="每次滚动停顿秒数")
 
 
 class CrawlerConfig(BaseModel):
@@ -124,21 +124,11 @@ class CoreConfig(BaseModel):
                     ],
                     extra={"locale": "jp"},
                 )
-            ]
-        )
-
-    @classmethod
-    def default(cls) -> "CoreConfig":
-        """返回带一代默认站点（Pinterest 示例）的配置。"""
-        return cls(
-            sites=[
-                SiteConfig(
-                    name="pinterest_demo",
-                    crawler_type=CrawlerType.PINTEREST,
-                    urls=[
-                        "https://jp.pinterest.com/pin/1028087421172953769/",
-                    ],
-                    extra={"locale": "jp"},
-                )
-            ]
+            ],
+            crawler=CrawlerConfig(
+                browser=BrowserConfig(
+                    login_timeout=60,
+                    proxy="http://10.0.0.51:1072",
+                ),
+            ),
         )
