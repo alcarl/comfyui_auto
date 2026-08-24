@@ -48,6 +48,8 @@ class PinterestBrowserCrawler(BaseCrawler):
         # 每下载一张图片即调用一次，用于“下载一张保存一张”，避免全部下载完才保存。
         # 签名：save_callback(FetchedImage) -> Any
         self._save_callback = save_callback
+        # 常驻会话持有的浏览器实例（由 open_session 设置，保持打开）
+        self._browser: Optional[Any] = None
 
     # ------------------------------------------------------------------ #
     # 公共接口
@@ -59,6 +61,136 @@ class PinterestBrowserCrawler(BaseCrawler):
     def fetch_images(self) -> List[FetchedImage]:
         """同步包装：全程在事件循环中完成（浏览器驱动 + 浏览器内取图）。"""
         return asyncio.run(self._fetch_images_async())
+
+    # ------------------------------------------------------------------ #
+    # 常驻会话接口（浏览器保持打开，供 UI “下载当前页面”等使用）
+    # ------------------------------------------------------------------ #
+    def open_session(self) -> None:
+        """启动浏览器并保持打开（供后续连续操作，不自动关闭）。"""
+        asyncio.run(self._open_session_async())
+
+    async def _open_session_async(self) -> None:
+        self._browser = await self._ensure_browser()
+
+    def download_urls(self, urls: List[str]) -> int:
+        """对指定 URL 列表逐页滚动抓取并保存，浏览器保持打开。
+
+        :return: 成功下载的图片张数
+        """
+        return asyncio.run(self._download_urls_async(urls))
+
+    async def _download_urls_async(self, urls: List[str]) -> int:
+        if self._browser is None:
+            await self._open_session_async()
+        browser = self._browser
+        results: List[FetchedImage] = []
+        seen_urls: Set[str] = set()
+        for page_url in urls:
+            try:
+                n = await self._download_page(browser, page_url, seen_urls, results)
+            except Exception as e:  # noqa: BLE001
+                self._progress("error", f"下载页面失败 {page_url}: {e}")
+        self._progress("done", f"下载完成，共 {len(results)} 张图片。")
+        return len(results)
+
+    def download_current_page(self) -> int:
+        """下载浏览器当前标签页的图片，浏览器保持打开。
+
+        :return: 成功下载的图片张数
+        """
+        return asyncio.run(self._download_current_page_async())
+
+    async def _download_current_page_async(self) -> int:
+        if self._browser is None:
+            await self._open_session_async()
+        browser = self._browser
+        # 读取当前活动标签页
+        tab = getattr(browser, "main_tab", None) or (browser.tabs[0] if browser.tabs else None)
+        if tab is None:
+            self._progress("error", "找不到当前浏览器标签页")
+            return 0
+        try:
+            await tab
+        except Exception:  # noqa: BLE001
+            pass
+        page_url = getattr(tab, "url", "") or "当前页面"
+        results: List[FetchedImage] = []
+        seen_urls: Set[str] = set()
+        await self._download_page(browser, page_url, seen_urls, results, tab=tab)
+        self._progress("done", f"当前页面下载完成，共 {len(results)} 张图片。")
+        return len(results)
+
+    def close_browser(self) -> None:
+        """关闭浏览器，结束会话。"""
+        asyncio.run(self._close_browser())
+        self._browser = None
+
+    async def _download_page(self, browser: Any, page_url: str,
+                             seen_urls: Set[str],
+                             results: List[FetchedImage],
+                             tab: Optional[Any] = None) -> int:
+        """对单个页面：滚动加载 -> 采集图片 URL -> 逐张下载保存。返回下载数。"""
+        scroll_times = (self._browser_config.scroll_times
+                        if self._browser_config else 5)
+        scroll_pause = (self._browser_config.scroll_pause
+                        if self._browser_config else 5.0)
+        page_load_wait = (self._browser_config.page_load_wait
+                          if self._browser_config else 3.0)
+        try:
+            if tab is None:
+                tab = await browser.get(page_url)
+                await asyncio.sleep(page_load_wait)
+        except Exception as e:  # noqa: BLE001
+            self._progress("error", f"加载页面失败 {page_url}: {e}")
+            return 0
+
+        # 先采集已加载的图片链接
+        collected = await self._collect_img_urls(tab)
+        self._progress("page", f"页面 {page_url} 初始发现 {len(collected)} 个图片地址")
+        for i in range(1, scroll_times + 1):
+            try:
+                await tab.evaluate("window.scrollBy(0, 1500)")
+            except Exception:  # noqa: BLE001
+                pass
+            await asyncio.sleep(scroll_pause)
+            new_urls = await self._collect_img_urls(tab)
+            before = len(collected)
+            seen_round: Set[str] = set(collected)
+            for u in new_urls:
+                if u not in seen_round:
+                    seen_round.add(u)
+                    collected.append(u)
+            self._progress("page",
+                           f"滚动 {i}/{scroll_times} 后累计 {len(collected)} 个图片地址"
+                           f"（本轮新增 {len(collected) - before}）")
+            if len(collected) == before:
+                self._progress("page", "本轮滚动未发现新图，提前停止。")
+                break
+
+        self._progress("page", f"页面 {page_url} 共发现 {len(collected)} 个图片地址")
+        count = 0
+        for img_url in collected:
+            if img_url in seen_urls:
+                continue
+            seen_urls.add(img_url)
+            try:
+                data, ctype = await self._fetch_via_browser(tab, img_url)
+            except Exception as e:  # noqa: BLE001
+                self._progress("error", f"浏览器取图失败 {img_url}: {e}")
+                continue
+            if not data:
+                continue
+            fetched = FetchedImage(
+                url=img_url, data=data, content_type=ctype,
+                source_page=page_url, site=self.site.name)
+            if self._save_callback is not None:
+                try:
+                    self._save_callback(fetched)
+                except Exception as e:  # noqa: BLE001
+                    self._progress("error", f"保存图片失败 {img_url}: {e}")
+            results.append(fetched)
+            count += 1
+        return count
 
     # ------------------------------------------------------------------ #
     # 异步实现
@@ -234,7 +366,7 @@ class PinterestBrowserCrawler(BaseCrawler):
             "  const isOriginal = u => u && u.indexOf('/originals/') !== -1;"
             "  const isMainPin = img => {"
             "    const a = (img.getAttribute('alt') || '').trim();"
-            "    return a === '其中包括图片：';"
+            "    return (a === '其中包括图片：' || a ==='This contains an image of:');"
             "  };"
             "  const out = [];"
             "  const push = u => { if (isOriginal(u) && !out.includes(u)) out.push(u); };"
