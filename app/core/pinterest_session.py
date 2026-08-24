@@ -254,56 +254,58 @@ class PinterestSession:
         :return: 成功下载的图片张数
         """
         import time as _time
-        with self._lock:
-            crawler = self._ensure_crawler(progress)
-            library = self._library
-            total_ok = 0
-            if stop_event is None:
-                progress("info", "开始下载待下载队列（一次性）…")
-            else:
-                progress("info", "开始持续轮询下载待下载队列（每 5 秒）…")
-            while True:
-                pending = library.list_pending_downloads()
-                if pending:
-                    progress("info", f"本轮获取 {len(pending)} 条待下载记录…")
-                for rec in pending:
-                    if stop_event is not None and stop_event.is_set():
-                        progress("warn", "已收到停止指令，中止下载。")
-                        break
+        crawler = self._ensure_crawler(progress)
+        library = self._library
+        total_ok = 0
+        if stop_event is None:
+            progress("info", "开始下载待下载队列（一次性）…")
+        else:
+            progress("info", "开始持续轮询下载待下载队列（每 5 秒）…")
+        while True:
+            pending = library.list_pending_downloads()
+            if pending:
+                progress("info", f"本轮获取 {len(pending)} 条待下载记录…")
+            for rec in pending:
+                if stop_event is not None and stop_event.is_set():
+                    progress("warn", "已收到停止指令，中止下载。")
+                    break
+                # 单个下载操作加锁（保护浏览器访问）；轮询间隔不持锁，
+                # 以便“采集当前页面 / 打开浏览器”等其他操作能执行。
+                with self._lock:
                     ok, data, ctype = self._loop_thread.run_coro(
                         crawler._download_pending_async(rec.source_url))
-                    if not ok or not data:
-                        library.mark_download_failed(rec.image_id)
-                        progress("error", f"下载失败: {rec.source_url[:70]}")
-                        continue
-                    # 下载成功：保存到图片库，标记待下载为完成
-                    if library.is_duplicate(url=rec.source_url):
-                        library.mark_download_done(rec.image_id)
-                        continue
-                    ext = _ext_of(rec.source_url, ctype)
-                    library.add_image(data, source_url=rec.source_url,
-                                      site=rec.site, image_id=rec.image_id,
-                                      ext=ext)
+                if not ok or not data:
+                    library.mark_download_failed(rec.image_id)
+                    progress("error", f"下载失败: {rec.source_url[:70]}")
+                    continue
+                # 下载成功：保存到图片库，标记待下载为完成
+                if library.is_duplicate(url=rec.source_url):
                     library.mark_download_done(rec.image_id)
-                    total_ok += 1
-                    progress("saved", f"已下载 {rec.source_url[:70]} "
-                                      f"（库中 {library.count()} 张）")
-                if stop_event is None:
-                    break
+                    continue
+                ext = _ext_of(rec.source_url, ctype)
+                library.add_image(data, source_url=rec.source_url,
+                                  site=rec.site, image_id=rec.image_id,
+                                  ext=ext)
+                library.mark_download_done(rec.image_id)
+                total_ok += 1
+                progress("saved", f"已下载 {rec.source_url[:70]} "
+                                  f"（库中 {library.count()} 张）")
+            if stop_event is None:
+                break
+            if stop_event.is_set():
+                progress("warn", "下载已停止。")
+                break
+            # 等待下一次轮询（期间可被停止，且不持有锁）
+            progress("info",
+                     f"本轮完成，{int(poll_interval)} 秒后再次轮询…")
+            waited = 0.0
+            while waited < poll_interval:
                 if stop_event.is_set():
-                    progress("warn", "下载已停止。")
                     break
-                # 等待下一次轮询（期间可被停止）
-                progress("info",
-                         f"本轮完成，{int(poll_interval)} 秒后再次轮询…")
-                waited = 0.0
-                while waited < poll_interval:
-                    if stop_event.is_set():
-                        break
-                    _time.sleep(0.5)
-                    waited += 0.5
-            progress("done", f"下载任务结束，共成功 {total_ok} 张。")
-            return total_ok
+                _time.sleep(0.5)
+                waited += 0.5
+        progress("done", f"下载任务结束，共成功 {total_ok} 张。")
+        return total_ok
 
     def generate(self, max_images: int, progress: ProgressCB,
                  stop_event: Optional[Any] = None,

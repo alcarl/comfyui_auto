@@ -153,19 +153,34 @@ class PinterestBrowserCrawler(BaseCrawler):
     async def _collect_current_page_async(self) -> int:
         if self._browser is None:
             await self._open_session_async()
-        tab = getattr(self._browser, "main_tab", None) or (
-            self._browser.tabs[0] if self._browser.tabs else None)
+        # 使用当前活动的标签页。注意：不要对 tab 做 await（nodriver 的 await tab
+        # 会触发 update_targets 页面同步，可能导致页面被导航/重载），
+        # 直接在当前 tab 上滚动采集，不重新加载当前页面。
+        tab = self._current_activity_tab()
         if tab is None:
             self._progress("error", "找不到当前浏览器标签页")
             return 0
         try:
-            await tab
+            page_url = tab.url or "当前页面"
         except Exception:  # noqa: BLE001
-            pass
-        page_url = getattr(tab, "url", "") or "当前页面"
+            page_url = "当前页面"
         n = await self._collect_page(tab, page_url)
         self._progress("done", f"当前页面采集完成，共登记 {n} 个待下载图片。")
         return n
+
+    def _current_activity_tab(self) -> Any:
+        """返回当前活动的标签页（优先最近被操作的 tab）。"""
+        if self._browser is None:
+            return None
+        # nodriver 的 tabs 按创建顺序；main_tab 是首个。这里优先取
+        # 最后一个（通常是最新激活的）page target，若取不到则回退 main_tab。
+        try:
+            page_tabs = [t for t in self._browser.tabs]
+        except Exception:  # noqa: BLE001
+            page_tabs = []
+        if page_tabs:
+            return page_tabs[-1]
+        return getattr(self._browser, "main_tab", None)
 
     async def _collect_page(self, tab: Any, page_url: str) -> int:
         """对单页滚动采集图片 URL，并逐条登记为待下载。返回登记数。"""
