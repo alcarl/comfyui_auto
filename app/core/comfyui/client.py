@@ -206,7 +206,7 @@ class ComfyUIClient:
                 workflow_path: Optional[str] = None,
                 output_dir: Optional[str] = None,
                 include_preview: bool = False,
-                skip_existing: bool = True) -> List[dict]:
+                skip_existing: bool = False) -> List[dict]:
         """对单张本地图片执行图生图，返回生成的图片信息列表。
 
         :param image_path: 本地原图路径
@@ -215,9 +215,9 @@ class ComfyUIClient:
         :param include_preview: 是否同时返回 PreviewImage 等临时预览节点的输出。
             默认 False（仅保留 SaveImage 正式输出），避免下载一堆临时预览图。
         :param skip_existing: 提交工作流前若输出文件已存在则跳过，避免重复生成。
-            默认 True。输出文件名与输入图片保持一致（基于输入文件名）。
+            默认 False。生成状态判断由调用方（基于数据库）负责，本方法不再做
+            文件级判断，以免与数据库状态不一致时产生“未返回生成结果”的错误跳过。
         :return: [{"filename":..., "data": b"...", "node_id":...}, ...]
-                 若因输出已存在而跳过，返回空列表。
         """
         # 目标输出文件名与输入图片保持一致（去掉输入扩展名，保留原名）。
         input_stem = os.path.splitext(os.path.basename(image_path))[0]

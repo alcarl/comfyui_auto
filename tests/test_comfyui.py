@@ -118,10 +118,16 @@ class TestEndToEndImg2Img(unittest.TestCase):
             json.dump(API_WORKFLOW, f)
         cfg.workflow_path = wf_path
 
-        # 输出已存在，应跳过（不提交 prompt，返回空列表）
-        outputs = client.img2img(self.img_path, output_dir=out_dir)
+        # 输出已存在，显式传 skip_existing=True，应跳过（不提交 prompt）
+        outputs = client.img2img(self.img_path, output_dir=out_dir,
+                                  skip_existing=True)
         self.assertEqual(outputs, [])
         self.assertIsNone(client.transport.posted_prompt)  # 未提交过 prompt
+
+        # 默认 skip_existing=False 时，即使输出已存在也会提交 prompt
+        outputs2 = client.img2img(self.img_path, output_dir=out_dir)
+        self.assertEqual(len(outputs2), 1)
+        self.assertIsNotNone(client.transport.posted_prompt)  # 已提交
 
 
 if __name__ == "__main__":

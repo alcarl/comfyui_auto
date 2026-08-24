@@ -137,6 +137,7 @@ def generate_from_library(cfg: Any, library: ImageLibrary, *,
             _log("skip", f"[{i}/{len(images)}] {rec.image_id} -> gif 图片跳过")
             continue
         try:
+            _log("info", f"[{i}/{len(images)}] 正在生成 {rec.image_id}…")
             outs = client.img2img(path, output_dir=output_dir)
             if not outs:
                 total_skip += 1
