@@ -97,9 +97,20 @@ class StorageDB:
         self.db_path = os.path.abspath(db_path or DB_FILENAME)
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.autocommit = autocommit
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        # 支持多线程访问：check_same_thread=False + busy_timeout（写锁等待）
+        # + timeout（连接建立等待），避免生成/下载等多个线程并发访问数据库时
+        # 互相阻塞或抛 "database is locked"。
+        self._conn = sqlite3.connect(
+            self.db_path, check_same_thread=False,
+            timeout=30)  # 连接/写锁最长等待 30 秒
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.RLock()
+        # 开启 WAL 模式：允许并发读 + 单写，显著降低多线程写冲突
+        try:
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=30000")
+        except sqlite3.Error:
+            pass
         self._init_schema()
 
     # ------------------------------------------------------------------ #
