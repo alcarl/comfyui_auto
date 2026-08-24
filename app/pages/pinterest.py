@@ -98,6 +98,7 @@ class PinterestPage(BasePage):
     # ------------------------------------------------------------------ #
     def build_content(self) -> ft.Column:
         self._ensure_controls()
+        self._init_log()
         config_section = self.build_section(
             title="抓取配置",
             content=ft.Column([
@@ -137,24 +138,42 @@ class PinterestPage(BasePage):
     # ------------------------------------------------------------------ #
     # 日志
     # ------------------------------------------------------------------ #
+    # 跨线程 UI 更新：flet 的 control.update() 线程安全，可从后台线程调用。
+    # 为避免高频日志时频繁 update 导致主线程过载，这里做简单的节流
+    # （合并相近时间内的多次更新），并去掉耗时的 scroll_to 动画。
+    def _init_log(self) -> None:
+        import time as _time
+        self._log_buf: list = []
+        self._log_last = 0.0
+        self._log_interval = 0.15  # 最小刷新间隔（秒）
+
     def _log(self, line: str) -> None:
+        import time as _time
         if self.log_view is None:
             return
         self.log_view.controls.append(ft.Text(line, size=13))
-        if len(self.log_view.controls) > 500:
-            self.log_view.controls = self.log_view.controls[-300:]
-        self.log_view.auto_scroll = True
+        if len(self.log_view.controls) > 800:
+            self.log_view.controls = self.log_view.controls[-500:]
+        now = _time.time()
+        # 节流：距上次刷新不足间隔时，先缓存，待主线程定时刷或下次触发补刷
+        if now - self._log_last >= self._log_interval:
+            self._log_last = now
+            self._flush_log_view()
+        # 若本次未刷新（节流），交给后续触发或生成结束前统一刷新
+
+    def _flush_log_view(self) -> None:
+        """直接刷新日志控件（线程安全）。"""
+        if self.log_view is None:
+            return
         try:
+            self.log_view.auto_scroll = True
             self.log_view.update()
-            self.log_view.scroll_to(offset=-1, duration=300)
         except Exception:  # noqa: BLE001
-            try:
-                self.log_view.scroll_to(offset=-1)
-            except Exception:  # noqa: BLE001
-                pass
+            pass
 
     def _clear_log(self) -> None:
-        self.log_view.controls = []
+        if self.log_view is not None:
+            self.log_view.controls = []
         self._log("日志已清空。")
 
     def _progress_cb(self):
@@ -226,6 +245,8 @@ class PinterestPage(BasePage):
             session.download_urls(urls, self._progress_cb())
         except Exception as ex:  # noqa: BLE001
             self._log(f"[error] 下载失败: {ex}")
+        finally:
+            self._flush_log_view()
 
     def _run_download_current(self) -> None:
         session = get_session()
@@ -234,6 +255,8 @@ class PinterestPage(BasePage):
             session.download_current_page(self._progress_cb())
         except Exception as ex:  # noqa: BLE001
             self._log(f"[error] 下载当前页面失败: {ex}")
+        finally:
+            self._flush_log_view()
 
     def _run_generate(self, max_n: int) -> None:
         session = get_session()
@@ -242,6 +265,8 @@ class PinterestPage(BasePage):
             session.generate(max_n, self._progress_cb())
         except Exception as ex:  # noqa: BLE001
             self._log(f"[error] 生成失败: {ex}")
+        finally:
+            self._flush_log_view()
 
     # ------------------------------------------------------------------ #
     # 配置
