@@ -248,3 +248,31 @@ class StorageDB:
         cur = self._conn.execute(
             "SELECT COUNT(*) FROM generations WHERE status=?", (self.STATUS_GENERATED,))
         return int(cur.fetchone()[0])
+
+    def list_images_pending_generation(self) -> List[dict]:
+        """查询“已下载但尚未生成”的图片（通过 JOIN 两表，一次获取）。
+
+        即 images 中存在、但 generations 中无记录或状态不是 generated 的图片。
+        避免逐条遍历 + 逐条查生成状态的 N 次查询。
+        """
+        cur = self._conn.execute(
+            """
+            SELECT images.* FROM images
+            LEFT JOIN generations ON images.image_id = generations.image_id
+            WHERE generations.image_id IS NULL
+               OR generations.status != ?
+            ORDER BY images.created_at ASC
+            """,
+            (self.STATUS_GENERATED,))
+        return [self._row_to_image(r) for r in cur.fetchall()]
+
+    def count_pending_generation(self) -> int:
+        cur = self._conn.execute(
+            """
+            SELECT COUNT(*) FROM images
+            LEFT JOIN generations ON images.image_id = generations.image_id
+            WHERE generations.image_id IS NULL
+               OR generations.status != ?
+            """,
+            (self.STATUS_GENERATED,))
+        return int(cur.fetchone()[0])

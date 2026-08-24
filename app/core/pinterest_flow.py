@@ -118,7 +118,8 @@ def generate_from_library(cfg: Any, library: ImageLibrary, *,
     """
     _log = progress or (lambda s, m: None)
     client = ComfyUIClient(cfg.comfyui)
-    images = library.list_images()
+    # 通过 SQL 连接两表，一次查出“已下载但尚未生成”的图片，不再逐条遍历/判断
+    images = library.list_pending_generation()
     if max_images and max_images > 0:
         images = images[:max_images]
     output_dir = os.path.join(os.path.abspath(cfg.library.root_dir), "outputs")
@@ -134,11 +135,6 @@ def generate_from_library(cfg: Any, library: ImageLibrary, *,
         if os.path.splitext(path)[1].lower() == ".gif":
             total_skip += 1
             _log("skip", f"[{i}/{len(images)}] {rec.image_id} -> gif 图片跳过")
-            continue
-        # 从数据库判断该图片是否已生成；已生成则跳过，避免重复出图
-        if library.is_generated(rec.image_id):
-            total_skip += 1
-            _log("skip", f"[{i}/{len(images)}] {rec.image_id} -> 数据库标记已生成，跳过")
             continue
         try:
             outs = client.img2img(path, output_dir=output_dir)

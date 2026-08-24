@@ -211,6 +211,14 @@ class ImageLibrary:
     def count_generated(self) -> int:
         return self.db.count_generated()
 
+    def list_pending_generation(self) -> List[ImageRecord]:
+        """返回“已下载但尚未生成”的图片记录（通过 JOIN 两表一次获取）。
+
+        生成流程用此代替“取全部图片 + 逐条查生成状态”，减少查询次数。
+        """
+        return [self._dict_to_record(d)
+                for d in self.db.list_images_pending_generation()]
+
     def scan_directory(self) -> int:
         """扫描图片库目录中的图片文件，将数据库中没有的记录补充进库。
 
