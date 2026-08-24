@@ -21,6 +21,7 @@ from app.core.pinterest_session import get_session
 
 class PinterestPage(BasePage):
     def __init__(self, **kwargs):
+        self._collect_thread: Optional[threading.Thread] = None
         self._download_thread: Optional[threading.Thread] = None
         self._generate_thread: Optional[threading.Thread] = None
         self._dl_lock = threading.Lock()
@@ -35,13 +36,15 @@ class PinterestPage(BasePage):
         self.workflow_input = None
         self.maxgen_input = None
         self.log_view = None
-        self.download_btn = None
-        self.current_btn = None
+        self.collect_btn = None
+        self.collect_current_btn = None
+        self.start_dl_btn = None
+        self.stop_dl_btn = None
         self.generate_btn = None
-        self.clear_btn = None
-        self.stop_btn = None
         self.stop_gen_btn = None
+        self.clear_btn = None
         self._generate_stop_event = None
+        self._download_stop_event = None
 
         super().__init__(title="Pinterest 抓取 / 生成", **kwargs)
 
@@ -78,19 +81,21 @@ class PinterestPage(BasePage):
             expand=True, height=200, auto_scroll=True, spacing=1,
             padding=10, controls=[ft.Text("等待操作…", size=13)])
 
-        self.download_btn = ft.FilledButton(
-            "下载图片", icon=ft.Icons.DOWNLOAD, on_click=self.on_download)
-        self.current_btn = ft.OutlinedButton(
-            "下载当前页面图片", icon=ft.Icons.OPEN_IN_NEW,
-            on_click=self.on_download_current)
+        self.collect_btn = ft.FilledButton(
+            "采集图片", icon=ft.Icons.ADD_PHOTO_ALTERNATE, on_click=self.on_collect)
+        self.collect_current_btn = ft.OutlinedButton(
+            "采集当前页面", icon=ft.Icons.OPEN_IN_NEW,
+            on_click=self.on_collect_current)
+        self.start_dl_btn = ft.FilledButton(
+            "开始下载任务", icon=ft.Icons.DOWNLOAD, on_click=self.on_start_download)
+        self.stop_dl_btn = ft.TextButton(
+            "停止下载任务", icon=ft.Icons.STOP_CIRCLE, on_click=self.on_stop_download)
         self.generate_btn = ft.FilledButton(
             "生成图片", icon=ft.Icons.AUTO_AWESOME, on_click=self.on_generate)
-        self.clear_btn = ft.TextButton(
-            "清空日志", on_click=lambda _: self._clear_log())
-        self.stop_btn = ft.TextButton(
-            "停止下载", icon=ft.Icons.STOP_CIRCLE, on_click=self.on_stop_download)
         self.stop_gen_btn = ft.TextButton(
             "停止生成", icon=ft.Icons.STOP, on_click=self.on_stop_generate)
+        self.clear_btn = ft.TextButton(
+            "清空日志", on_click=lambda _: self._clear_log())
         # 开关：打开=扫描本地图片更新数据库；关闭=直接从数据库判断状态
         self.scan_switch = ft.Switch(
             label="扫描本地图片更新数据库", value=False,
@@ -117,10 +122,18 @@ class PinterestPage(BasePage):
                 ft.Row([self.maxgen_input]),
             ], spacing=12),
         )
-        action_row = ft.Row([self.download_btn, self.current_btn,
-                             self.generate_btn, self.stop_gen_btn,
-                             self.stop_btn, self.clear_btn],
-                            spacing=10, wrap=True)
+        # 第一步：采集（写入待下载表）
+        collect_row = ft.Row([self.collect_btn, self.collect_current_btn],
+                             spacing=10, wrap=True)
+        # 第二步：后台轮询下载任务
+        download_task_row = ft.Row(
+            [self.start_dl_btn, self.stop_dl_btn,
+             ft.Text("（后台每 5 秒轮询待下载队列）", size=12,
+                     color=self.theme_colors.secondary_accent)],
+            spacing=10, wrap=True)
+        # 生成
+        generate_row = ft.Row([self.generate_btn, self.stop_gen_btn,
+                               self.clear_btn], spacing=10, wrap=True)
         switch_row = ft.Row([self.scan_switch], spacing=10)
         log_section = ft.Container(
             content=ft.Column([
@@ -135,7 +148,9 @@ class PinterestPage(BasePage):
         return ft.Column([
             config_section,
             comfy_section,
-            action_row,
+            collect_row,
+            download_task_row,
+            generate_row,
             switch_row,
             log_section,
         ], scroll="auto", spacing=10)
@@ -187,29 +202,49 @@ class PinterestPage(BasePage):
     # ------------------------------------------------------------------ #
     # 事件
     # ------------------------------------------------------------------ #
-    def on_download(self, e) -> None:
-        if self._download_thread and self._download_thread.is_alive():
-            self._log("[warn] 下载任务运行中，请稍候…")
+    # ---- 第一步：采集（写待下载表） ----
+    def on_collect(self, e) -> None:
+        if self._collect_thread and self._collect_thread.is_alive():
+            self._log("[warn] 采集任务运行中，请稍候…")
             return
         urls = self._parse_urls()
         if not urls:
             self._log("[error] 请填写至少一个页面 URL")
             return
         self._apply_config()
-        self._log(f"[info] 开始下载 {len(urls)} 个页面…")
-        self._download_thread = threading.Thread(
-            target=self._run_download, args=(urls,), daemon=True)
-        self._download_thread.start()
+        self._log(f"[info] 开始采集 {len(urls)} 个页面…")
+        self._collect_thread = threading.Thread(
+            target=self._run_collect, args=(urls,), daemon=True)
+        self._collect_thread.start()
 
-    def on_download_current(self, e) -> None:
+    def on_collect_current(self, e) -> None:
+        if self._collect_thread and self._collect_thread.is_alive():
+            self._log("[warn] 采集任务运行中，请稍候…")
+            return
+        self._apply_config()
+        self._log("[info] 正在采集当前页面（请在浏览器中选择目标页面）…")
+        self._collect_thread = threading.Thread(
+            target=self._run_collect_current, daemon=True)
+        self._collect_thread.start()
+
+    # ---- 第二步：后台轮询下载待下载队列 ----
+    def on_start_download(self, e) -> None:
         if self._download_thread and self._download_thread.is_alive():
             self._log("[warn] 下载任务运行中，请稍候…")
             return
         self._apply_config()
-        self._log("[info] 正在下载当前页面图片（请在浏览器中选择目标页面）…")
+        self._download_stop_event = threading.Event()
+        self._log("[info] 启动后台下载任务（每 5 秒轮询待下载队列）…")
         self._download_thread = threading.Thread(
-            target=self._run_download_current, daemon=True)
+            target=self._run_download_task, daemon=True)
         self._download_thread.start()
+
+    def on_stop_download(self, e) -> None:
+        if self._download_stop_event is not None:
+            self._download_stop_event.set()
+            self._log("[warn] 已发送停止下载指令，将在本轮完成后停止轮询。")
+        else:
+            self._log("[warn] 当前没有运行中的下载任务。")
 
     def on_generate(self, e) -> None:
         if self._generate_thread and self._generate_thread.is_alive():
@@ -252,25 +287,39 @@ class PinterestPage(BasePage):
         except Exception as ex:  # noqa: BLE001
             self._log(f"[error] 扫描本地图片失败: {ex}")
 
-    def _run_download(self, urls: list) -> None:
+    def _run_collect(self, urls: list) -> None:
         session = get_session()
         try:
             self._scan_if_enabled(session)
-            session.download_urls(urls, self._progress_cb())
+            session.collect_and_enqueue(urls, self._progress_cb())
         except Exception as ex:  # noqa: BLE001
-            self._log(f"[error] 下载失败: {ex}")
+            self._log(f"[error] 采集失败: {ex}")
         finally:
             self._flush_log_view()
 
-    def _run_download_current(self) -> None:
+    def _run_collect_current(self) -> None:
         session = get_session()
         try:
             self._scan_if_enabled(session)
-            session.download_current_page(self._progress_cb())
+            session.collect_current_page(self._progress_cb())
         except Exception as ex:  # noqa: BLE001
-            self._log(f"[error] 下载当前页面失败: {ex}")
+            self._log(f"[error] 采集当前页面失败: {ex}")
         finally:
             self._flush_log_view()
+
+    def _run_download_task(self) -> None:
+        session = get_session()
+        try:
+            self._scan_if_enabled(session)
+            session.download_pending_loop(
+                self._progress_cb(),
+                stop_event=self._download_stop_event,
+                poll_interval=5.0)
+        except Exception as ex:  # noqa: BLE001
+            self._log(f"[error] 下载任务失败: {ex}")
+        finally:
+            self._flush_log_view()
+            self._download_stop_event = None
 
     def _run_generate(self, max_n: int) -> None:
         session = get_session()

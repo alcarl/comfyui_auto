@@ -219,6 +219,30 @@ class ImageLibrary:
         return [self._dict_to_record(d)
                 for d in self.db.list_images_pending_generation()]
 
+    # ------------------------------------------------------------------ #
+    # 下载队列（代理到 StorageDB）
+    # ------------------------------------------------------------------ #
+    def enqueue_download(self, source_url: str, content_type: str = "",
+                         site: str = "") -> Optional[str]:
+        """登记一条待下载记录（按 URL 去重），返回 image_id 或 None。"""
+        return self.db.add_pending_download(source_url, content_type, site)
+
+    def list_pending_downloads(self) -> list:
+        """获取所有待下载记录。"""
+        return self.db.list_pending_downloads()
+
+    def count_pending_downloads(self) -> int:
+        return self.db.count_pending_downloads()
+
+    def get_download(self, image_id: str):
+        return self.db.get_download(image_id)
+
+    def mark_download_done(self, image_id: str) -> None:
+        self.db.mark_download_done(image_id)
+
+    def mark_download_failed(self, image_id: str) -> None:
+        self.db.mark_download_failed(image_id)
+
     def scan_directory(self) -> int:
         """扫描图片库目录中的图片文件，将数据库中没有的记录补充进库。
 

@@ -43,8 +43,9 @@ def _new_library(cfg: Any) -> ImageLibrary:
     )
 
 
-def _make_crawler(cfg: Any, library: ImageLibrary, progress: ProgressCB) -> Any:
-    """构造浏览器后端 crawler，支持保存回调与进度回调。"""
+def _make_crawler(cfg: Any, library: ImageLibrary, progress: ProgressCB,
+                  enqueue_callback: Optional[Any] = None) -> Any:
+    """构造浏览器后端 crawler，支持保存回调、进度回调与待下载登记回调。"""
     if not cfg.crawler.browser.proxy:
         cfg.crawler.browser.proxy = "http://10.0.0.51:1072"
     if not cfg.crawler.browser.login_timeout or cfg.crawler.browser.login_timeout > 60:
@@ -75,6 +76,7 @@ def _make_crawler(cfg: Any, library: ImageLibrary, progress: ProgressCB) -> Any:
         browser_config=cfg.crawler.browser,
         progress=progress,
         save_callback=_save_now,
+        enqueue_callback=enqueue_callback,
     )
 
 
@@ -161,8 +163,13 @@ class PinterestSession:
             return self._crawler
         cfg = CoreConfigManager().config
         self._library = _new_library(cfg)
+
+        def _enqueue(source_url, content_type="", site=""):
+            return self._library.enqueue_download(source_url, content_type, site)
+
         loop = self._ensure_loop()
-        self._crawler = _make_crawler(cfg, self._library, progress)
+        self._crawler = _make_crawler(cfg, self._library, progress,
+                                      enqueue_callback=_enqueue)
         # 在常驻循环中启动浏览器
         loop.run_coro(self._crawler._open_session_async())
         progress("info", "浏览器已打开并保持运行。")
@@ -185,6 +192,96 @@ class PinterestSession:
             n = self._loop_thread.run_coro(crawler._download_current_page_async())
             progress("done", f"当前页面下载完成，共 {n} 张。")
             return n
+
+    # ------------------------------------------------------------------ #
+    # 下载两步式：第一步采集入队，第二步后台轮询下载
+    # ------------------------------------------------------------------ #
+    def collect_and_enqueue(self, urls: list, progress: ProgressCB) -> int:
+        """第一步：从 URL 列表采集图片地址，登记为待下载（不下载文件）。
+
+        :return: 登记到待下载队列的条数
+        """
+        with self._lock:
+            crawler = self._ensure_crawler(progress)
+            progress("info", f"开始采集 {len(urls)} 个页面…")
+            for u in urls:
+                progress("info", f"  - {u}")
+            n = self._loop_thread.run_coro(crawler._collect_urls_async(urls))
+            pending = self._library.count_pending_downloads()
+            progress("done", f"采集完成：登记 {n} 个待下载，当前待下载共 {pending} 条。")
+            return n
+
+    def collect_current_page(self, progress: ProgressCB) -> int:
+        """第一步：采集浏览器当前页面的图片并登记为待下载。"""
+        with self._lock:
+            crawler = self._ensure_crawler(progress)
+            progress("info", "开始采集当前页面图片…")
+            n = self._loop_thread.run_coro(crawler._collect_current_page_async())
+            pending = self._library.count_pending_downloads()
+            progress("done", f"当前页面采集完成：登记 {n} 个待下载，"
+                             f"当前待下载共 {pending} 条。")
+            return n
+
+    def download_pending_loop(self, progress: ProgressCB,
+                              stop_event: Optional[Any] = None,
+                              poll_interval: float = 5.0) -> int:
+        """第二步：持续轮询数据库待下载记录并自动下载。
+
+        每 poll_interval 秒查询一次待下载表，逐条下载保存，直到 stop_event 被设置。
+
+        :return: 成功下载的图片张数
+        """
+        import time as _time
+        with self._lock:
+            crawler = self._ensure_crawler(progress)
+            library = self._library
+            total_ok = 0
+            if stop_event is None:
+                progress("info", "开始下载待下载队列（一次性）…")
+            else:
+                progress("info", "开始持续轮询下载待下载队列（每 5 秒）…")
+            while True:
+                pending = library.list_pending_downloads()
+                if pending:
+                    progress("info", f"本轮获取 {len(pending)} 条待下载记录…")
+                for rec in pending:
+                    if stop_event is not None and stop_event.is_set():
+                        progress("warn", "已收到停止指令，中止下载。")
+                        break
+                    ok, data, ctype = self._loop_thread.run_coro(
+                        crawler._download_pending_async(rec.source_url))
+                    if not ok or not data:
+                        library.mark_download_failed(rec.image_id)
+                        progress("error", f"下载失败: {rec.source_url[:70]}")
+                        continue
+                    # 下载成功：保存到图片库，标记待下载为完成
+                    if library.is_duplicate(url=rec.source_url):
+                        library.mark_download_done(rec.image_id)
+                        continue
+                    ext = _ext_of(rec.source_url, ctype)
+                    library.add_image(data, source_url=rec.source_url,
+                                      site=rec.site, image_id=rec.image_id,
+                                      ext=ext)
+                    library.mark_download_done(rec.image_id)
+                    total_ok += 1
+                    progress("saved", f"已下载 {rec.source_url[:70]} "
+                                      f"（库中 {library.count()} 张）")
+                if stop_event is None:
+                    break
+                if stop_event.is_set():
+                    progress("warn", "下载已停止。")
+                    break
+                # 等待下一次轮询（期间可被停止）
+                progress("info",
+                         f"本轮完成，{int(poll_interval)} 秒后再次轮询…")
+                waited = 0.0
+                while waited < poll_interval:
+                    if stop_event.is_set():
+                        break
+                    _time.sleep(0.5)
+                    waited += 0.5
+            progress("done", f"下载任务结束，共成功 {total_ok} 张。")
+            return total_ok
 
     def generate(self, max_images: int, progress: ProgressCB,
                  stop_event: Optional[Any] = None,

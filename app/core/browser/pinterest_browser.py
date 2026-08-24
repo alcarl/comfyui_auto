@@ -38,7 +38,8 @@ class PinterestBrowserCrawler(BaseCrawler):
                  launcher: Optional[BrowserLauncher] = None,
                  progress: Optional[Any] = None,
                  browser_config: Optional[Any] = None,
-                 save_callback: Optional[Any] = None):
+                 save_callback: Optional[Any] = None,
+                 enqueue_callback: Optional[Any] = None):
         super().__init__(site, timeout=timeout, max_concurrency=max_concurrency,
                          retry=retry, user_agent=user_agent, http_get=http_get)
         self._browser_factory = browser_factory
@@ -48,6 +49,9 @@ class PinterestBrowserCrawler(BaseCrawler):
         # 每下载一张图片即调用一次，用于“下载一张保存一张”，避免全部下载完才保存。
         # 签名：save_callback(FetchedImage) -> Any
         self._save_callback = save_callback
+        # 采集到图片 URL 时调用，用于登记“待下载”记录。
+        # 签名：enqueue_callback(source_url, content_type, site) -> image_id or None
+        self._enqueue_callback = enqueue_callback
         # 常驻会话持有的浏览器实例（由 open_session 设置，保持打开）
         self._browser: Optional[Any] = None
 
@@ -119,6 +123,126 @@ class PinterestBrowserCrawler(BaseCrawler):
         await self._download_page(browser, page_url, seen_urls, results, tab=tab)
         self._progress("done", f"当前页面下载完成，共 {len(results)} 张图片。")
         return len(results)
+
+    # ------------------------------------------------------------------ #
+    # 采集（第一步）：从页面采集图片 URL，登记为待下载，不下载文件
+    # ------------------------------------------------------------------ #
+    def collect_urls(self, urls: List[str]) -> int:
+        """对 URL 列表逐页采集图片地址并登记为待下载，返回新增待下载数。"""
+        return asyncio.run(self._collect_urls_async(urls))
+
+    async def _collect_urls_async(self, urls: List[str]) -> int:
+        if self._browser is None:
+            await self._open_session_async()
+        total = 0
+        for page_url in urls:
+            try:
+                tab = await self._browser.get(page_url)
+                await asyncio.sleep(self._page_load_wait())
+                n = await self._collect_page(tab, page_url)
+                total += n
+            except Exception as e:  # noqa: BLE001
+                self._progress("error", f"采集页面失败 {page_url}: {e}")
+        self._progress("done", f"采集完成，共登记 {total} 个待下载图片。")
+        return total
+
+    def collect_current_page(self) -> int:
+        """采集浏览器当前标签页的图片并登记为待下载。"""
+        return asyncio.run(self._collect_current_page_async())
+
+    async def _collect_current_page_async(self) -> int:
+        if self._browser is None:
+            await self._open_session_async()
+        tab = getattr(self._browser, "main_tab", None) or (
+            self._browser.tabs[0] if self._browser.tabs else None)
+        if tab is None:
+            self._progress("error", "找不到当前浏览器标签页")
+            return 0
+        try:
+            await tab
+        except Exception:  # noqa: BLE001
+            pass
+        page_url = getattr(tab, "url", "") or "当前页面"
+        n = await self._collect_page(tab, page_url)
+        self._progress("done", f"当前页面采集完成，共登记 {n} 个待下载图片。")
+        return n
+
+    async def _collect_page(self, tab: Any, page_url: str) -> int:
+        """对单页滚动采集图片 URL，并逐条登记为待下载。返回登记数。"""
+        urls = await self._gather_page_urls(tab, page_url)
+        if self._enqueue_callback is None:
+            return 0
+        count = 0
+        for img_url in urls:
+            try:
+                image_id = self._enqueue_callback(
+                    img_url, "", self.site.name)
+                if image_id:
+                    count += 1
+            except Exception as e:  # noqa: BLE001
+                self._progress("error", f"登记待下载失败 {img_url}: {e}")
+        self._progress("page",
+                       f"页面 {page_url} 登记 {count} 个待下载图片（共 {len(urls)} 个地址）")
+        return count
+
+    async def _gather_page_urls(self, tab: Any, page_url: str) -> List[str]:
+        """滚动加载页面并收集所有 originals 图片 URL（去重）。"""
+        scroll_times = self._browser_config.scroll_times if self._browser_config else 5
+        scroll_pause = self._browser_config.scroll_pause if self._browser_config else 5.0
+        collected = await self._collect_img_urls(tab)
+        self._progress("page", f"页面 {page_url} 初始发现 {len(collected)} 个图片地址")
+        for i in range(1, scroll_times + 1):
+            try:
+                await tab.evaluate("window.scrollBy(0, 1500)")
+            except Exception:  # noqa: BLE001
+                pass
+            await asyncio.sleep(scroll_pause)
+            new_urls = await self._collect_img_urls(tab)
+            before = len(collected)
+            seen_round: Set[str] = set(collected)
+            for u in new_urls:
+                if u not in seen_round:
+                    seen_round.add(u)
+                    collected.append(u)
+            self._progress("page",
+                           f"滚动 {i}/{scroll_times} 后累计 {len(collected)} 个图片地址"
+                           f"（本轮新增 {len(collected) - before}）")
+            if len(collected) == before:
+                self._progress("page", "本轮滚动未发现新图，提前停止。")
+                break
+        self._progress("page", f"页面 {page_url} 共发现 {len(collected)} 个图片地址")
+        return collected
+
+    def _page_load_wait(self) -> float:
+        return (self._browser_config.page_load_wait
+                if self._browser_config else 3.0)
+
+    # ------------------------------------------------------------------ #
+    # 下载单条（第二步）：下载一条待下载记录并保存
+    # ------------------------------------------------------------------ #
+    def download_pending(self, source_url: str) -> tuple:
+        """下载单条待下载图片，返回 (成功: bool, data bytes, content_type)。"""
+        return asyncio.run(self._download_pending_async(source_url))
+
+    async def _download_pending_async(self, source_url: str) -> tuple:
+        if self._browser is None:
+            await self._open_session_async()
+        tab = getattr(self._browser, "main_tab", None) or (
+            self._browser.tabs[0] if self._browser.tabs else None)
+        if tab is None:
+            return False, b"", ""
+        try:
+            await tab
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            data, ctype = await self._fetch_via_browser(tab, source_url)
+        except Exception as e:  # noqa: BLE001
+            self._progress("error", f"下载失败 {source_url}: {e}")
+            return False, b"", ""
+        if not data:
+            return False, b"", ""
+        return True, data, ctype
 
     def close_browser(self) -> None:
         """关闭浏览器，结束会话。"""

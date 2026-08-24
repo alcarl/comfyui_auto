@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import sqlite3
 import threading
@@ -23,6 +24,11 @@ DB_FILENAME = "library.db"
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _make_image_id(source_url: str) -> str:
+    """根据来源 URL 生成稳定的 image_id（URL 的 SHA1 前 16 位）。"""
+    return hashlib.sha1((source_url or "").encode("utf-8")).hexdigest()[:16]
 
 
 class GeneratedRecord:
@@ -46,6 +52,32 @@ class GeneratedRecord:
         }
 
 
+class DownloadRecord:
+    """一条待下载 / 下载记录。"""
+
+    __slots__ = ("image_id", "source_url", "content_type", "site",
+                 "status", "created_at", "downloaded_at")
+
+    def __init__(self, image_id: str, source_url: str, content_type: str = "",
+                 site: str = "", status: str = "pending",
+                 created_at: str = "", downloaded_at: str = ""):
+        self.image_id = image_id
+        self.source_url = source_url
+        self.content_type = content_type
+        self.site = site
+        self.status = status
+        self.created_at = created_at
+        self.downloaded_at = downloaded_at
+
+    def as_dict(self) -> dict:
+        return {
+            "image_id": self.image_id, "source_url": self.source_url,
+            "content_type": self.content_type, "site": self.site,
+            "status": self.status, "created_at": self.created_at,
+            "downloaded_at": self.downloaded_at,
+        }
+
+
 class StorageDB:
     """统一的本地 SQLite 存储接口。
 
@@ -56,6 +88,10 @@ class StorageDB:
     # 生成状态常量
     STATUS_GENERATED = "generated"
     STATUS_PENDING = "pending"
+    # 下载状态常量
+    DOWNLOAD_PENDING = "pending"      # 待下载（已采集 URL，未下载文件）
+    DOWNLOAD_DONE = "downloaded"      # 已下载
+    DOWNLOAD_FAILED = "failed"        # 下载失败
 
     def __init__(self, db_path: Optional[str] = None, autocommit: bool = True):
         self.db_path = os.path.abspath(db_path or DB_FILENAME)
@@ -96,6 +132,18 @@ class StorageDB:
                     generated_at  TEXT DEFAULT '',
                     FOREIGN KEY (image_id) REFERENCES images(image_id)
                 );
+
+                CREATE TABLE IF NOT EXISTS downloads (
+                    image_id      TEXT PRIMARY KEY,
+                    source_url    TEXT DEFAULT '',
+                    content_type  TEXT DEFAULT '',
+                    site          TEXT DEFAULT '',
+                    status        TEXT DEFAULT 'pending',
+                    created_at    TEXT DEFAULT '',
+                    downloaded_at TEXT DEFAULT ''
+                );
+                CREATE INDEX IF NOT EXISTS idx_downloads_status
+                    ON downloads(status);
                 """
             )
             self._conn.commit()
@@ -276,3 +324,73 @@ class StorageDB:
             """,
             (self.STATUS_GENERATED,))
         return int(cur.fetchone()[0])
+
+    # ------------------------------------------------------------------ #
+    # 下载队列（采集到的图片先登记为待下载，再由后台任务下载）
+    # ------------------------------------------------------------------ #
+    def add_pending_download(self, source_url: str, content_type: str = "",
+                             site: str = "") -> Optional[str]:
+        """登记一条待下载记录（按 source_url 去重），返回 image_id 或 None。
+
+        若该 URL 已在 downloads 表（无论状态）或 images 表中存在，则跳过。
+        """
+        if not source_url:
+            return None
+        # 已存在于待下载队列
+        cur = self._conn.execute(
+            "SELECT image_id FROM downloads WHERE source_url=?", (source_url,))
+        row = cur.fetchone()
+        if row:
+            return row["image_id"]
+        # 已下载进图片库
+        if self.image_exists_by_url(source_url):
+            return None
+        image_id = _make_image_id(source_url)
+        self._execute(
+            "INSERT INTO downloads "
+            "(image_id, source_url, content_type, site, status, created_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (image_id, source_url, content_type, site,
+             self.DOWNLOAD_PENDING, _utcnow()))
+        return image_id
+
+    def list_pending_downloads(self) -> List[DownloadRecord]:
+        """获取所有待下载记录（按采集时间升序）。"""
+        cur = self._conn.execute(
+            "SELECT * FROM downloads WHERE status=? ORDER BY created_at ASC",
+            (self.DOWNLOAD_PENDING,))
+        return [DownloadRecord(
+            image_id=r["image_id"], source_url=r["source_url"] or "",
+            content_type=r["content_type"] or "", site=r["site"] or "",
+            status=r["status"] or "", created_at=r["created_at"] or "",
+            downloaded_at=r["downloaded_at"] or "") for r in cur.fetchall()]
+
+    def count_pending_downloads(self) -> int:
+        cur = self._conn.execute(
+            "SELECT COUNT(*) FROM downloads WHERE status=?",
+            (self.DOWNLOAD_PENDING,))
+        return int(cur.fetchone()[0])
+
+    def get_download(self, image_id: str) -> Optional[DownloadRecord]:
+        cur = self._conn.execute(
+            "SELECT * FROM downloads WHERE image_id=?", (image_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return DownloadRecord(
+            image_id=row["image_id"], source_url=row["source_url"] or "",
+            content_type=row["content_type"] or "", site=row["site"] or "",
+            status=row["status"] or "", created_at=row["created_at"] or "",
+            downloaded_at=row["downloaded_at"] or "")
+
+    def mark_download_done(self, image_id: str) -> None:
+        """将一条待下载记录标记为已下载。"""
+        self._execute(
+            "UPDATE downloads SET status=?, downloaded_at=? WHERE image_id=?",
+            (self.DOWNLOAD_DONE, _utcnow(), image_id))
+
+    def mark_download_failed(self, image_id: str) -> None:
+        """将一条待下载记录标记为失败（下次轮询会重新尝试）。"""
+        self._execute(
+            "UPDATE downloads SET status=?, downloaded_at=? WHERE image_id=?",
+            (self.DOWNLOAD_FAILED, _utcnow(), image_id))
