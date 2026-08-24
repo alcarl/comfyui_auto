@@ -186,14 +186,20 @@ class PinterestSession:
             progress("done", f"当前页面下载完成，共 {n} 张。")
             return n
 
-    def generate(self, max_images: int, progress: ProgressCB) -> int:
+    def generate(self, max_images: int, progress: ProgressCB,
+                 stop_event: Optional[Any] = None,
+                 poll_interval: float = 5.0) -> int:
         from app.core.pinterest_flow import generate_from_library
         cfg = CoreConfigManager().config
         library = _new_library(cfg)
-        progress("info", "开始调用 ComfyUI 生成…")
+        if stop_event is None:
+            progress("info", "开始调用 ComfyUI 生成…")
+        else:
+            progress("info", "开始持续轮询生成（每 5 秒查询数据库）…")
         n = generate_from_library(cfg, library, max_images=max_images,
-                                  progress=progress)
-        progress("done", f"生成完成，共成功 {n} 张。")
+                                  progress=progress, stop_event=stop_event,
+                                  poll_interval=poll_interval)
+        progress("done", f"生成结束，共成功 {n} 张。")
         return n
 
     def scan_library(self, progress: ProgressCB) -> int:

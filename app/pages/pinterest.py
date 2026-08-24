@@ -40,6 +40,8 @@ class PinterestPage(BasePage):
         self.generate_btn = None
         self.clear_btn = None
         self.stop_btn = None
+        self.stop_gen_btn = None
+        self._generate_stop_event = None
 
         super().__init__(title="Pinterest 抓取 / 生成", **kwargs)
 
@@ -87,6 +89,8 @@ class PinterestPage(BasePage):
             "清空日志", on_click=lambda _: self._clear_log())
         self.stop_btn = ft.TextButton(
             "停止下载", icon=ft.Icons.STOP_CIRCLE, on_click=self.on_stop_download)
+        self.stop_gen_btn = ft.TextButton(
+            "停止生成", icon=ft.Icons.STOP, on_click=self.on_stop_generate)
         # 开关：打开=扫描本地图片更新数据库；关闭=直接从数据库判断状态
         self.scan_switch = ft.Switch(
             label="扫描本地图片更新数据库", value=False,
@@ -114,7 +118,8 @@ class PinterestPage(BasePage):
             ], spacing=12),
         )
         action_row = ft.Row([self.download_btn, self.current_btn,
-                             self.generate_btn, self.stop_btn, self.clear_btn],
+                             self.generate_btn, self.stop_gen_btn,
+                             self.stop_btn, self.clear_btn],
                             spacing=10, wrap=True)
         switch_row = ft.Row([self.scan_switch], spacing=10)
         log_section = ft.Container(
@@ -216,10 +221,19 @@ class PinterestPage(BasePage):
             max_n = int(self.maxgen_input.value or "0")
         except ValueError:
             pass
-        self._log("[info] 启动生成任务…")
+        # 创建停止事件，用于轮询过程中停止
+        self._generate_stop_event = threading.Event()
+        self._log("[info] 启动持续轮询生成任务（每 5 秒查询数据库）…")
         self._generate_thread = threading.Thread(
             target=self._run_generate, args=(max_n,), daemon=True)
         self._generate_thread.start()
+
+    def on_stop_generate(self, e) -> None:
+        if self._generate_stop_event is not None:
+            self._generate_stop_event.set()
+            self._log("[warn] 已发送停止生成指令，将在本轮完成后停止轮询。")
+        else:
+            self._log("[warn] 当前没有运行中的生成任务。")
 
     def on_stop_download(self, e) -> None:
         self._log("[warn] 停止下载仅会在当前下载任务结束后关闭浏览器。")
@@ -262,11 +276,14 @@ class PinterestPage(BasePage):
         session = get_session()
         try:
             self._scan_if_enabled(session)
-            session.generate(max_n, self._progress_cb())
+            session.generate(max_n, self._progress_cb(),
+                             stop_event=self._generate_stop_event,
+                             poll_interval=5.0)
         except Exception as ex:  # noqa: BLE001
             self._log(f"[error] 生成失败: {ex}")
         finally:
             self._flush_log_view()
+            self._generate_stop_event = None
 
     # ------------------------------------------------------------------ #
     # 配置

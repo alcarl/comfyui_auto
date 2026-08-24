@@ -111,50 +111,97 @@ def crawl_pinterest(cfg: Any, *,
 
 def generate_from_library(cfg: Any, library: ImageLibrary, *,
                           max_images: int = 0,
-                          progress: Optional[ProgressCB] = None) -> int:
-    """对图片库中的图片逐一送入 ComfyUI 工作流生成。
+                          progress: Optional[ProgressCB] = None,
+                          stop_event: Optional[Any] = None,
+                          poll_interval: float = 5.0) -> int:
+    """把图片库中的“已下载但未生成”图片送入 ComfyUI 生成。
 
+    支持两种模式：
+    - 不传 stop_event：处理完当前一批待生成图片后退出（一次性）。
+    - 传入 stop_event（threading.Event）：进入持续轮询，每 poll_interval 秒
+      重新查询一次数据库待生成条目并生成，直到 stop_event 被设置；这样
+      轮询期间新下载的图片也会被自动处理，可通过“停止生成”按钮停止。
+
+    :param max_images: 每轮最多生成的张数（0 表示不限制）
+    :param progress: 进度回调 (stage, message)
+    :param stop_event: 用于停止轮询的 threading.Event（可选）
+    :param poll_interval: 轮询间隔秒数（默认 5 秒）
     :return: 成功生成的图片张数
     """
     _log = progress or (lambda s, m: None)
     client = ComfyUIClient(cfg.comfyui)
-    # 通过 SQL 连接两表，一次查出“已下载但尚未生成”的图片，不再逐条遍历/判断
-    images = library.list_pending_generation()
-    if max_images and max_images > 0:
-        images = images[:max_images]
     output_dir = os.path.join(os.path.abspath(cfg.library.root_dir), "outputs")
     os.makedirs(output_dir, exist_ok=True)
 
+    import time as _time
     total_ok = total_err = total_skip = 0
-    for i, rec in enumerate(images, 1):
-        path = library.get_path(rec.image_id)
-        if not path:
-            _log("skip", f"图片文件缺失: {rec.image_id}")
-            continue
-        # gif 动图不适合送入 ComfyUI 图生图，跳过
-        if os.path.splitext(path)[1].lower() == ".gif":
-            total_skip += 1
-            _log("skip", f"[{i}/{len(images)}] {rec.image_id} -> gif 图片跳过")
-            continue
-        try:
-            _log("info", f"[{i}/{len(images)}] 正在生成 {rec.image_id}…")
-            outs = client.img2img(path, output_dir=output_dir)
-            if not outs:
-                total_skip += 1
-                _log("skip", f"[{i}/{len(images)}] {rec.image_id} -> 未返回生成结果，跳过")
+
+    def _process_batch() -> tuple:
+        # 每次查询都通过 JOIN 两表获取“已下载但未生成”的条目
+        images = library.list_pending_generation()
+        if max_images and max_images > 0:
+            images = images[:max_images]
+        ok = err = skip = 0
+        for i, rec in enumerate(images, 1):
+            if stop_event is not None and stop_event.is_set():
+                _log("warn", "已收到停止指令，中止本轮生成。")
+                break
+            path = library.get_path(rec.image_id)
+            if not path:
+                _log("skip", f"图片文件缺失: {rec.image_id}")
+                skip += 1
                 continue
-            ok = sum(1 for o in outs if o.get("data"))
-            # 生成成功，记录输出文件名并更新数据库状态
-            out_files = ",".join(
-                o.get("filename", "") for o in outs if o.get("filename"))
-            library.mark_generated(rec.image_id, out_files)
-            total_ok += ok
-            _log("gen", f"[{i}/{len(images)}] {rec.image_id} -> 生成 {ok} 张")
-        except KeyboardInterrupt:
-            raise
-        except Exception as e:  # noqa: BLE001
-            total_err += 1
-            _log("error", f"图生图失败 {rec.image_id}: {e}")
-    _log("done", f"生成完成：成功 {total_ok} 张，跳过 {total_skip} 个，失败 {total_err} 个。"
+            # gif 动图不适合送入 ComfyUI 图生图，跳过
+            if os.path.splitext(path)[1].lower() == ".gif":
+                skip += 1
+                _log("skip", f"[{i}/{len(images)}] {rec.image_id} -> gif 图片跳过")
+                continue
+            try:
+                _log("info", f"[{i}/{len(images)}] 正在生成 {rec.image_id}…")
+                outs = client.img2img(path, output_dir=output_dir)
+                if not outs:
+                    skip += 1
+                    _log("skip",
+                         f"[{i}/{len(images)}] {rec.image_id} -> 未返回生成结果，跳过")
+                    continue
+                n = sum(1 for o in outs if o.get("data"))
+                # 生成成功，记录输出文件名并更新数据库状态
+                out_files = ",".join(
+                    o.get("filename", "") for o in outs if o.get("filename"))
+                library.mark_generated(rec.image_id, out_files)
+                ok += n
+                _log("gen", f"[{i}/{len(images)}] {rec.image_id} -> 生成 {n} 张")
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:  # noqa: BLE001
+                err += 1
+                _log("error", f"图生图失败 {rec.image_id}: {e}")
+        return ok, err, skip
+
+    while True:
+        ok, err, skip = _process_batch()
+        total_ok += ok
+        total_err += err
+        total_skip += skip
+
+        # 无 stop_event：一次性模式，处理完当前批次即退出
+        if stop_event is None:
+            break
+
+        # 有 stop_event：持续轮询，间隔 poll_interval 秒（期间可被停止）
+        if stop_event.is_set():
+            _log("warn", "生成已停止。")
+            break
+        _log("info",
+             f"本轮完成（成功 {ok}，跳过 {skip}，失败 {err}），"
+             f"{int(poll_interval)} 秒后再次轮询…")
+        waited = 0.0
+        while waited < poll_interval:
+            if stop_event.is_set():
+                break
+            _time.sleep(0.5)
+            waited += 0.5
+
+    _log("done", f"生成结束：成功 {total_ok} 张，跳过 {total_skip} 个，失败 {total_err} 个。"
                  f"输出目录: {output_dir}")
     return total_ok
