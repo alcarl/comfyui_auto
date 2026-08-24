@@ -212,10 +212,17 @@ class PinterestSession:
             return n
 
     def collect_current_page(self, progress: ProgressCB) -> int:
-        """第一步：采集浏览器当前页面的图片并登记为待下载。"""
+        """第一步：采集浏览器当前页面的图片并登记为待下载。
+
+        直接使用浏览器当前标签页，**不重新加载当前页面**、不跳转。
+        仅当浏览器尚未打开时提示先打开（避免自动导航覆盖用户所在页）。
+        """
         with self._lock:
+            if self._crawler is None:
+                progress("warn", "浏览器尚未打开，请先点击“打开浏览器”并手动选择页面。")
+                return 0
             crawler = self._ensure_crawler(progress)
-            progress("info", "开始采集当前页面图片…")
+            progress("info", "开始采集当前页面图片（不重新加载，直接滚动下滑采集）…")
             n = self._loop_thread.run_coro(crawler._collect_current_page_async())
             pending = self._library.count_pending_downloads()
             progress("done", f"当前页面采集完成：登记 {n} 个待下载，"
