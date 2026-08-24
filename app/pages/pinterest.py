@@ -82,7 +82,7 @@ class PinterestPage(BasePage):
             padding=10, controls=[ft.Text("等待操作…", size=13)])
 
         self.collect_btn = ft.FilledButton(
-            "采集图片", icon=ft.Icons.ADD_PHOTO_ALTERNATE, on_click=self.on_collect)
+            "打开浏览器", icon=ft.Icons.OPEN_IN_BROWSER, on_click=self.on_collect)
         self.collect_current_btn = ft.OutlinedButton(
             "采集当前页面", icon=ft.Icons.OPEN_IN_NEW,
             on_click=self.on_collect_current)
@@ -202,19 +202,15 @@ class PinterestPage(BasePage):
     # ------------------------------------------------------------------ #
     # 事件
     # ------------------------------------------------------------------ #
-    # ---- 第一步：采集（写待下载表） ----
+    # ---- 第一步：打开浏览器（不采集），由用户手动选页后采集当前页 ----
     def on_collect(self, e) -> None:
         if self._collect_thread and self._collect_thread.is_alive():
-            self._log("[warn] 采集任务运行中，请稍候…")
-            return
-        urls = self._parse_urls()
-        if not urls:
-            self._log("[error] 请填写至少一个页面 URL")
+            self._log("[warn] 任务运行中，请稍候…")
             return
         self._apply_config()
-        self._log(f"[info] 开始采集 {len(urls)} 个页面…")
+        self._log("[info] 打开浏览器并跳转到 Pinterest 首页…")
         self._collect_thread = threading.Thread(
-            target=self._run_collect, args=(urls,), daemon=True)
+            target=self._run_open_pinterest, daemon=True)
         self._collect_thread.start()
 
     def on_collect_current(self, e) -> None:
@@ -287,13 +283,13 @@ class PinterestPage(BasePage):
         except Exception as ex:  # noqa: BLE001
             self._log(f"[error] 扫描本地图片失败: {ex}")
 
-    def _run_collect(self, urls: list) -> None:
+    def _run_open_pinterest(self) -> None:
         session = get_session()
         try:
             self._scan_if_enabled(session)
-            session.collect_and_enqueue(urls, self._progress_cb())
+            session.open_pinterest(self._progress_cb())
         except Exception as ex:  # noqa: BLE001
-            self._log(f"[error] 采集失败: {ex}")
+            self._log(f"[error] 打开浏览器失败: {ex}")
         finally:
             self._flush_log_view()
 

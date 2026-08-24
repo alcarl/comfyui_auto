@@ -222,6 +222,21 @@ class PinterestSession:
                              f"当前待下载共 {pending} 条。")
             return n
 
+    def open_pinterest(self, progress: ProgressCB,
+                       url: str = "https://jp.pinterest.com") -> bool:
+        """打开浏览器并跳转到 Pinterest（供用户手动选择页面），不采集。"""
+        with self._lock:
+            crawler = self._ensure_crawler(progress)
+            progress("info", f"打开浏览器并跳转 {url}…（请在浏览器中手动选择页面）")
+            try:
+                self._loop_thread.run_coro(crawler._navigate(url))
+            except Exception as e:  # noqa: BLE001
+                progress("error", f"打开浏览器失败: {e}")
+                return False
+            progress("done", "浏览器已就绪，请在浏览器中手动选择想下载的页面，"
+                             "然后点击“采集当前页面”。")
+            return True
+
     def download_pending_loop(self, progress: ProgressCB,
                               stop_event: Optional[Any] = None,
                               poll_interval: float = 5.0) -> int:

@@ -217,6 +217,13 @@ class PinterestBrowserCrawler(BaseCrawler):
         return (self._browser_config.page_load_wait
                 if self._browser_config else 3.0)
 
+    async def _navigate(self, url: str) -> None:
+        """打开浏览器并导航到指定 URL（不采集，供用户手动操作）。"""
+        if self._browser is None:
+            await self._open_session_async()
+        await self._browser.get(url)
+        await asyncio.sleep(self._page_load_wait())
+
     # ------------------------------------------------------------------ #
     # 下载单条（第二步）：下载一条待下载记录并保存
     # ------------------------------------------------------------------ #
