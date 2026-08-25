@@ -367,25 +367,29 @@ class StorageDB:
 
     def list_pending_downloads(self) -> List[DownloadRecord]:
         """获取所有待下载记录（按采集时间升序）。"""
-        cur = self._conn.execute(
-            "SELECT * FROM downloads WHERE status=? ORDER BY created_at ASC",
-            (self.DOWNLOAD_PENDING,))
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT * FROM downloads WHERE status=? ORDER BY created_at ASC",
+                (self.DOWNLOAD_PENDING,))
+            rows = cur.fetchall()
         return [DownloadRecord(
             image_id=r["image_id"], source_url=r["source_url"] or "",
             content_type=r["content_type"] or "", site=r["site"] or "",
             status=r["status"] or "", created_at=r["created_at"] or "",
-            downloaded_at=r["downloaded_at"] or "") for r in cur.fetchall()]
+            downloaded_at=r["downloaded_at"] or "") for r in rows]
 
     def count_pending_downloads(self) -> int:
-        cur = self._conn.execute(
-            "SELECT COUNT(*) FROM downloads WHERE status=?",
-            (self.DOWNLOAD_PENDING,))
-        return int(cur.fetchone()[0])
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT COUNT(*) FROM downloads WHERE status=?",
+                (self.DOWNLOAD_PENDING,))
+            return int(cur.fetchone()[0])
 
     def get_download(self, image_id: str) -> Optional[DownloadRecord]:
-        cur = self._conn.execute(
-            "SELECT * FROM downloads WHERE image_id=?", (image_id,))
-        row = cur.fetchone()
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT * FROM downloads WHERE image_id=?", (image_id,))
+            row = cur.fetchone()
         if not row:
             return None
         return DownloadRecord(
