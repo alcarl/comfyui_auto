@@ -264,7 +264,7 @@ class PinterestSession:
         while True:
             pending = library.list_pending_downloads()
             if pending:
-                progress("info", f"本轮获取 {len(pending)} 条待下载记录…")
+                progress("debug", f"本轮获取 {len(pending)} 条待下载记录…")
             for rec in pending:
                 if stop_event is not None and stop_event.is_set():
                     progress("warn", "已收到停止指令，中止下载。")
@@ -296,7 +296,7 @@ class PinterestSession:
                 progress("warn", "下载已停止。")
                 break
             # 等待下一次轮询（期间可被停止，且不持有锁）
-            progress("info",
+            progress("debug",
                      f"本轮完成，{int(poll_interval)} 秒后再次轮询…")
             waited = 0.0
             while waited < poll_interval:

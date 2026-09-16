@@ -80,6 +80,18 @@ class PinterestPage(BasePage):
         self.log_view = ft.ListView(
             expand=True, height=200, auto_scroll=True, spacing=1,
             padding=10, controls=[ft.Text("等待操作…", size=13)])
+        # 日志级别过滤（默认 info；debug 显示所有含循环过程日志）
+        self.level_dropdown = ft.Dropdown(
+            label="日志级别", width=160,
+            value="info",
+            options=[
+                ft.dropdown.Option("debug", "调试 debug"),
+                ft.dropdown.Option("info", "信息 info"),
+                ft.dropdown.Option("warn", "警告 warn"),
+                ft.dropdown.Option("error", "错误 error"),
+            ],
+            on_change=lambda e: self._set_log_level(e.control.value),
+        )
 
         self.collect_btn = ft.FilledButton(
             "打开浏览器", icon=ft.Icons.OPEN_IN_BROWSER, on_click=self.on_collect)
@@ -137,7 +149,10 @@ class PinterestPage(BasePage):
         switch_row = ft.Row([self.scan_switch], spacing=10)
         log_section = ft.Container(
             content=ft.Column([
-                ft.Text("运行日志", size=16, weight="bold"),
+                ft.Row([
+                    ft.Text("运行日志", size=16, weight="bold"),
+                    self.level_dropdown,
+                ], spacing=10),
                 self.log_view,
             ], spacing=8),
             padding=12,
@@ -156,24 +171,54 @@ class PinterestPage(BasePage):
         ], scroll="auto", spacing=10)
 
     # ------------------------------------------------------------------ #
-    # 日志
+    # 日志（分级 + 过滤）
     # ------------------------------------------------------------------ #
     # 跨线程 UI 更新：flet 的 control.update() 线程安全，可从后台线程调用。
     # 为避免高频日志时频繁 update 导致主线程过载，这里做简单的节流
     # （合并相近时间内的多次更新），并去掉耗时的 scroll_to 动画。
+    #
+    # 日志分级：debug < info < warn < error。界面可过滤级别，默认 info。
+    # 后台任务循环中可能重复输出的日志（滚动进度、轮询提示等）归为 debug，
+    # 默认不显示，需要调试时切换到 debug 级别即可看到。
+    _LOG_LEVELS = {"debug": 10, "info": 20, "warn": 30, "error": 40}
+
     def _init_log(self) -> None:
         import time as _time
         self._log_buf: list = []
         self._log_last = 0.0
         self._log_interval = 0.15  # 最小刷新间隔（秒）
+        self._log_level = "info"   # 默认过滤级别
 
-    def _log(self, line: str) -> None:
-        import time as _time
+    def _log(self, level_or_line: str, message: str = "") -> None:
+        """追加一条日志（带级别过滤）。
+
+        支持两种调用：
+        - ``_log("debug", "滚动进度…")``：显式指定级别
+        - ``_log("[warn] 提示…")``：从文本前缀解析级别（向后兼容）
+        """
         if self.log_view is None:
             return
-        self.log_view.controls.append(ft.Text(line, size=13))
+        # 解析级别与内容
+        if message:
+            level = level_or_line
+            line = message
+        else:
+            line = level_or_line
+            level = "info"
+            if line.startswith("[") and "]" in line:
+                tag, _, rest = line[1:].partition("]")
+                if tag in self._LOG_LEVELS:
+                    level = tag
+                    line = rest.strip()
+        # 过滤：低于当前显示级别的不显示
+        if self._LOG_LEVELS.get(level, 20) < self._LOG_LEVELS.get(
+                self._log_level, 20):
+            return
+        self.log_view.controls.append(
+            ft.Text(f"[{level.upper()}] {line}", size=13))
         if len(self.log_view.controls) > 800:
             self.log_view.controls = self.log_view.controls[-500:]
+        import time as _time
         now = _time.time()
         # 节流：距上次刷新不足间隔时，先缓存，待主线程定时刷或下次触发补刷
         if now - self._log_last >= self._log_interval:
@@ -196,8 +241,30 @@ class PinterestPage(BasePage):
             self.log_view.controls = []
         self._log("日志已清空。")
 
+    def _set_log_level(self, level: str) -> None:
+        """切换日志显示级别。"""
+        if level not in self._LOG_LEVELS:
+            return
+        self._log_level = level
+        self._log(f"[info] 日志级别已切换为 {level}。")
+
+    @staticmethod
+    def _map_stage_level(stage: str) -> str:
+        """把进度回调的 stage 映射到日志级别。
+
+        - debug / page / skip：后台任务过程日志（滚动、轮询、跳过）→ debug
+        - info / saved / gen / done：常规进度 → info
+        - warn → warn；error → error
+        """
+        if stage in ("debug", "page", "skip"):
+            return "debug"
+        if stage in ("warn", "error"):
+            return stage
+        return "info"
+
     def _progress_cb(self):
-        return lambda stage, msg="": self._log(f"[{stage}] {msg}")
+        return lambda stage, msg="": self._log(
+            self._map_stage_level(stage), msg)
 
     # ------------------------------------------------------------------ #
     # 事件

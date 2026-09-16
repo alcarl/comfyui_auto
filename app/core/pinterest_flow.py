@@ -192,7 +192,7 @@ def generate_from_library(cfg: Any, library: ImageLibrary, *,
         if stop_event.is_set():
             _log("warn", "生成已停止。")
             break
-        _log("info",
+        _log("debug",
              f"本轮完成（成功 {ok}，跳过 {skip}，失败 {err}），"
              f"{int(poll_interval)} 秒后再次轮询…")
         waited = 0.0
