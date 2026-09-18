@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import random
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
@@ -242,6 +243,12 @@ class ComfyUIClient:
         # 3. 转换为 API 格式（UI 保存格式需转换后才可被 /prompt 接受）
         if "nodes" in wf:
             wf = self.transport.to_api_format(wf)
+
+        # 4. 设置随机种子
+        for node_id, node in wf.items():
+            if node.get("class_type") == "SeedNode":
+                node["inputs"]["seed"] = random.randint(0, 2**53)
+
 
         # 4. 从工作流中识别 SaveImage 节点（白名单），用于过滤非正式输出。
         save_nodes = {
