@@ -85,12 +85,16 @@ class TestImageLibraryScan(unittest.TestCase):
         with open(os.path.join(self.lib_dir, "note.txt"), "w") as f:
             f.write("not image")
 
-        added = self.lib.scan_directory()
+        added, marked, reset = self.lib.scan_directory()
         self.assertEqual(added, 2)
+        self.assertEqual(marked, 0)
+        self.assertEqual(reset, 0)
         self.assertEqual(self.lib.count(), 2)
         # 再次扫描不重复登记
-        added2 = self.lib.scan_directory()
+        added2, marked2, reset2 = self.lib.scan_directory()
         self.assertEqual(added2, 0)
+        self.assertEqual(marked2, 0)
+        self.assertEqual(reset2, 0)
         # 能访问到扫描到的图片
         self.assertIsNotNone(self.lib.get_path("aaa"))
         self.assertIsNotNone(self.lib.get_path("bbb"))

@@ -111,8 +111,7 @@ class PinterestPage(BasePage):
         # 开关：打开=扫描本地图片更新数据库；关闭=直接从数据库判断状态
         self.scan_switch = ft.Switch(
             label="扫描本地图片更新数据库", value=False,
-            on_change=lambda e: self._log(
-                f"[info] 状态来源：{'扫描本地' if e.control.value else '仅数据库'}"))
+            on_change=self.on_scan_switch)
 
     # ------------------------------------------------------------------ #
     # 布局
@@ -338,9 +337,26 @@ class PinterestPage(BasePage):
         session = get_session()
         threading.Thread(target=session.close, daemon=True).start()
 
+    def on_scan_switch(self, e) -> None:
+        """开关切换：打开时立即后台扫描一次，让用户看到效果；关闭仅记日志。"""
+        if not e.control.value:
+            self._log("[info] 状态来源：仅数据库")
+            return
+        self._log("[info] 状态来源：扫描本地（立即扫描一次…）")
+        threading.Thread(target=self._run_scan, daemon=True).start()
+
     # ------------------------------------------------------------------ #
     # 后台执行
     # ------------------------------------------------------------------ #
+    def _run_scan(self) -> None:
+        session = get_session()
+        try:
+            session.scan_library(self._progress_cb())
+        except Exception as ex:  # noqa: BLE001
+            self._log(f"[error] 扫描本地图片失败: {ex}")
+        finally:
+            self._flush_log_view()
+
     def _scan_if_enabled(self, session) -> None:
         """若开关打开，则先扫描本地图片目录，更新数据库状态。"""
         try:

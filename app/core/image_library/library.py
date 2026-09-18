@@ -243,16 +243,18 @@ class ImageLibrary:
     def mark_download_failed(self, image_id: str) -> None:
         self.db.mark_download_failed(image_id)
 
-    def scan_directory(self) -> int:
+    def scan_directory(self) -> tuple:
         """扫描图片库目录中的图片文件，将数据库中没有的记录补充进库。
 
         用于 UI 开关“打开时”更新数据库状态（增量同步本地文件到 DB）。
         - 只登记本库目录下的图片文件（jpg/jpeg/png/webp/gif/avif）。
-        - 同时扫描 ComfyUI 输出目录（<root>/outputs）：若某图片存在对应生成
-          文件但数据库 generations 表无记录，则补一条“已生成”记录，
-          避免下次生成时误判为未生成。
+        - 同时**双向**同步 ComfyUI 输出目录（<root>/outputs）的生成状态：
+          * 正向：本地存在对应生成文件但 generations 表无记录 → 补一条
+            “已生成”记录，避免下次生成时误判为未生成。
+          * 反向：数据库标记已生成、但本地生成文件已不存在（被删除/移动）
+            → 重置为“待生成”，让生成流程重新生成。
 
-        :return: 新增的图片记录条数
+        :return: (新增图片记录数, 补登记“已生成”数, 重置回“待生成”数)
         """
         added = 0
         with self._lock:
@@ -279,33 +281,50 @@ class ImageLibrary:
                 known_filenames.add(fname)
                 added += 1
 
-            # 同步生成状态：若本地存在对应生成文件，则补一条“已生成”数据库记录
-            self._sync_generation_status_from_disk()
-        return added
+            # 双向同步生成状态（见方法 docstring）
+            marked, reset = self._sync_generation_status_from_disk()
+        return added, marked, reset
 
-    def _sync_generation_status_from_disk(self) -> int:
-        """扫描 ComfyUI 输出目录，为存在生成文件的图片补登记生成状态。
+    def _sync_generation_status_from_disk(self) -> tuple:
+        """双向同步 ComfyUI 输出目录与 generations 表的生成状态。
 
-        :return: 本次补充的“已生成”记录条数
+        - 正向：本地存在生成文件（<image_id>.<ext>）但 DB 无记录
+          → 补一条“已生成”，避免下次生成时误判为未生成。
+        - 反向：DB 标记已生成、但本地输出目录中既无 <image_id>.<ext>、
+          也无记录在 output_files 里的文件（被删除/移动）
+          → 重置为“待生成”，让生成流程重新生成。
+
+        :return: (补登记“已生成”数, 重置回“待生成”数)
         """
         output_dir = self._output_dir()
-        if not os.path.isdir(output_dir):
-            return 0
-        marked = 0
-        # 输出文件名形如 <image_id>.png 等
-        out_files = {}
-        for fname in os.listdir(output_dir):
-            base = os.path.splitext(fname)[0]
-            if base:
-                out_files[base] = fname
-        for image_id, fname in out_files.items():
+        out_stems: set = set()
+        out_names: set = set()
+        if os.path.isdir(output_dir):
+            for fname in os.listdir(output_dir):
+                base = os.path.splitext(fname)[0]
+                if base:
+                    out_stems.add(base)
+                    out_names.add(fname)
+        marked = reset = 0
+        # 正向：本地有生成文件 -> 补“已生成”记录
+        for fname in sorted(out_names):
+            image_id = os.path.splitext(fname)[0]
             if self.db.get_image(image_id) is None:
                 continue
             if self.db.is_generated(image_id):
                 continue
             self.db.mark_generated(image_id, fname)
             marked += 1
-        return marked
+        # 反向：DB 已生成但本地生成文件已不存在 -> 重置为待生成
+        for rec in self.db.list_generated():
+            if rec.image_id in out_stems:
+                continue
+            recorded = {f for f in (rec.output_files or "").split(",") if f}
+            if recorded & out_names:
+                continue
+            self.db.mark_pending(rec.image_id)
+            reset += 1
+        return marked, reset
 
     def _output_dir(self) -> str:
         """推导 ComfyUI 输出目录（与库同级的 outputs 目录）。"""

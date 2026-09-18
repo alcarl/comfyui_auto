@@ -35,13 +35,34 @@ class TestScanGenerationSync(unittest.TestCase):
         lib = self._make_lib()
         try:
             # 扫描：登记图片 + 同步生成状态
-            added = lib.scan_directory()
+            added, marked, reset = lib.scan_directory()
             self.assertEqual(added, 2)
+            self.assertEqual(marked, 1)   # img1 有生成文件 -> 补登记
+            self.assertEqual(reset, 0)
             # img1 有生成文件 -> 应标记已生成
             self.assertTrue(lib.is_generated("img1"))
             # img2 无生成文件 -> 未生成
             self.assertFalse(lib.is_generated("img2"))
             self.assertEqual(lib.count_generated(), 1)
+        finally:
+            lib.close()
+
+    def test_scan_resets_generated_when_output_deleted(self):
+        """DB 标记已生成但本地生成文件被删除 -> 扫描应重置为待生成。"""
+        lib = self._make_lib()
+        try:
+            lib.scan_directory()
+            self.assertTrue(lib.is_generated("img1"))
+            # 删除本地生成文件
+            os.remove(os.path.join(self.output_dir, "img1.png"))
+            added, marked, reset = lib.scan_directory()
+            self.assertEqual(added, 0)
+            self.assertEqual(marked, 0)
+            self.assertEqual(reset, 1)    # img1 被重置回待生成
+            self.assertFalse(lib.is_generated("img1"))
+            # 重新出现在待生成列表中，生成流程会重新生成
+            pending = lib.list_pending_generation()
+            self.assertIn("img1", [r.image_id for r in pending])
         finally:
             lib.close()
 

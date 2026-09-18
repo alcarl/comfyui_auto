@@ -160,7 +160,23 @@ class PinterestSession:
 
     def _ensure_crawler(self, progress: ProgressCB) -> Any:
         if self._crawler is not None:
-            return self._crawler
+            # 心跳：用户可能已经手动关闭了浏览器窗口（Chrome 进程退出），
+            # 此时 crawler 仍持有 nodriver Browser 对象，但连接已死，
+            # 在死连接上发 CDP 命令会抛 "no close frame received or sent"。
+            # 检测到死了就清理旧 crawler 并重新启动。
+            try:
+                alive = self._loop_thread.run_coro(
+                    self._crawler._is_browser_alive_async())
+            except Exception:  # noqa: BLE001
+                alive = False
+            if alive:
+                return self._crawler
+            progress("info", "检测到浏览器已被关闭，正在重新打开…")
+            try:
+                self._loop_thread.run_coro(self._crawler._close_browser())
+            except Exception:  # noqa: BLE001
+                pass
+            self._crawler = None
         cfg = CoreConfigManager().config
         self._library = _new_library(cfg)
 
@@ -327,15 +343,20 @@ class PinterestSession:
         """扫描本地图片目录，把未登记的图片补充进数据库。
 
         供 UI 开关“打开时”调用：先扫描同步数据库，再据此判断状态。
+        生成状态为双向同步：
+        - 本地有生成文件但 DB 无记录 → 补“已生成”；
+        - DB 已生成但本地生成文件已被删除 → 重置为“待生成”（下次生成会重新生成）。
         """
         with self._lock:
             if self._library is None:
                 self._library = _new_library(CoreConfigManager().config)
             progress("info", "开始扫描本地图片目录，更新数据库…")
-            added = self._library.scan_directory()
+            added, marked, reset = self._library.scan_directory()
             progress("done",
-                     f"扫描完成：新增 {added} 张，图片库当前共 "
-                     f"{self._library.count()} 张（已生成 {self._library.count_generated()}）。")
+                     f"扫描完成：新增 {added} 张，补登记已生成 {marked} 张，"
+                     f"本地生成文件缺失重置待生成 {reset} 张；"
+                     f"图片库当前共 {self._library.count()} 张"
+                     f"（已生成 {self._library.count_generated()}）。")
             return added
 
     def close(self) -> None:

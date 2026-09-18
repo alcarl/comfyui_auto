@@ -76,6 +76,28 @@ class PinterestBrowserCrawler(BaseCrawler):
     async def _open_session_async(self) -> None:
         self._browser = await self._ensure_browser()
 
+    async def _is_browser_alive_async(self) -> bool:
+        """心跳检测：当前持有的浏览器进程是否还在运行。
+
+        用途：用户在浏览器窗口上点击 X 关闭时，Chrome 进程退出，
+        nodriver 的 Browser 对象引用还在但连接已死。继续在死连接上
+        发 CDP 命令会抛 "no close frame received or sent" 之类的错误。
+        因此 ``PinterestSession._ensure_crawler`` 在复用前调用本方法判断：
+        死了就丢弃旧 crawler、重新启动。
+        """
+        browser = self._browser
+        if browser is None:
+            return False
+        try:
+            # nodriver Browser.stopped 是 property：
+            #   _process and _process.returncode is None -> False (在跑)
+            #   否则 -> True (已退出)
+            if browser.stopped:
+                return False
+        except Exception:  # noqa: BLE001
+            return False
+        return True
+
     def download_urls(self, urls: List[str]) -> int:
         """对指定 URL 列表逐页滚动抓取并保存，浏览器保持打开。
 
