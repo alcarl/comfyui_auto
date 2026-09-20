@@ -155,6 +155,15 @@ class StorageDB:
                 );
                 CREATE INDEX IF NOT EXISTS idx_downloads_status
                     ON downloads(status);
+
+                CREATE TABLE IF NOT EXISTS tags (
+                    image_id   TEXT NOT NULL,
+                    filename   TEXT DEFAULT '',
+                    tag        TEXT NOT NULL,
+                    created_at TEXT DEFAULT '',
+                    PRIMARY KEY (image_id, tag)
+                );
+                CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);
                 """
             )
             self._conn.commit()
@@ -245,6 +254,8 @@ class StorageDB:
     def delete_image(self, image_id: str) -> bool:
         cur = self._execute("DELETE FROM images WHERE image_id=?", (image_id,))
         self._execute("DELETE FROM generations WHERE image_id=?", (image_id,))
+        # 级联清理反推提示词（若存在）
+        self._execute("DELETE FROM tags WHERE image_id=?", (image_id,))
         return cur.rowcount > 0
 
     # ------------------------------------------------------------------ #
@@ -279,6 +290,37 @@ class StorageDB:
             (image_id,))
         row = cur.fetchone()
         return bool(row and row["status"] == self.STATUS_GENERATED)
+
+    def delete_generation(self, image_id: str) -> bool:
+        """删除某张图片的生成记录（不删图、不删 tags）。返回是否存在该记录。"""
+        cur = self._execute(
+            "DELETE FROM generations WHERE image_id=?", (image_id,))
+        return cur.rowcount > 0
+
+    def delete_tags(self, image_id: str) -> int:
+        """删除某张图片的全部反推提示词记录。返回删除的条数。"""
+        cur = self._execute("DELETE FROM tags WHERE image_id=?", (image_id,))
+        return cur.rowcount
+
+    def clear_output_files(self, image_id: Optional[str] = None) -> int:
+        """清空 generations.output_files（保留 status、generated_at、记录行）。
+
+        用于排查/恢复"DB 里登记的输出文件名错位"——清空后，
+        ImageLibrary.generated_output_path 会回退到精确 stem 匹配，
+        不会再用错位的文件名。
+
+        :param image_id: 限定单条；None 则清空所有记录。
+        :return: 受影响的行数
+        """
+        if image_id is None:
+            cur = self._execute(
+                "UPDATE generations SET output_files='' "
+                "WHERE output_files IS NOT NULL AND output_files != ''")
+        else:
+            cur = self._execute(
+                "UPDATE generations SET output_files='' WHERE image_id=?",
+                (image_id,))
+        return cur.rowcount
 
     def get_generation(self, image_id: str) -> Optional[GeneratedRecord]:
         cur = self._conn.execute(
@@ -409,3 +451,63 @@ class StorageDB:
         self._execute(
             "UPDATE downloads SET status=?, downloaded_at=? WHERE image_id=?",
             (self.DOWNLOAD_FAILED, _utcnow(), image_id))
+
+    # ------------------------------------------------------------------ #
+    # 反推提示词（WD14 tagger 结果，每行一个提示词）
+    # ------------------------------------------------------------------ #
+    def set_tags(self, image_id: str, filename: str,
+                 tags: List[str]) -> int:
+        """全量替换某张图片的反推提示词（每个提示词一行记录）。
+
+        :return: 实际写入的提示词条数
+        """
+        with self._lock:
+            self._execute("DELETE FROM tags WHERE image_id=?", (image_id,))
+            now = _utcnow()
+            rows = [(image_id, filename or "", t.strip(), now)
+                    for t in tags if t and t.strip()]
+            if rows:
+                self._conn.executemany(
+                    "INSERT OR REPLACE INTO tags "
+                    "(image_id, filename, tag, created_at) VALUES (?,?,?,?)",
+                    rows)
+                self._conn.commit()
+            return len(rows)
+
+    def get_tags(self, image_id: str) -> List[str]:
+        """返回某张图片的全部反推提示词。"""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT tag FROM tags WHERE image_id=? ORDER BY tag ASC",
+                (image_id,))
+            return [r["tag"] for r in cur.fetchall()]
+
+    def has_tags(self, image_id: str) -> bool:
+        """判断某张图片是否已有反推提示词。"""
+        cur = self._conn.execute(
+            "SELECT 1 FROM tags WHERE image_id=? LIMIT 1", (image_id,))
+        return cur.fetchone() is not None
+
+    def list_distinct_tags(self) -> List[str]:
+        """列出全部去重后的提示词（按字母序，供筛选框建议）。"""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT DISTINCT tag FROM tags ORDER BY tag ASC")
+            return [r["tag"] for r in cur.fetchall()]
+
+    def search_image_ids_by_tag(self, keyword: str) -> List[str]:
+        """按提示词关键词（包含匹配，忽略 ASCII 大小写）筛选图片 id 列表。"""
+        kw = (keyword or "").strip()
+        if not kw:
+            return []
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT DISTINCT image_id FROM tags WHERE tag LIKE ?"
+                " ORDER BY image_id ASC",
+                (f"%{kw}%",))
+            return [r["image_id"] for r in cur.fetchall()]
+
+    def delete_tags_for_image(self, image_id: str) -> int:
+        """删除某张图片的全部反推提示词。"""
+        cur = self._execute("DELETE FROM tags WHERE image_id=?", (image_id,))
+        return cur.rowcount

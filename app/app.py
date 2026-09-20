@@ -317,6 +317,14 @@ class App:
         self.current_page = page
         self.content_area.content = page.content
         self.page.update()
+        # 页面挂载钩子：实现了 on_page_mounted 的页面在每次显示时被调用
+        # （如图片库页面据此自动加载列表数据）
+        mounted = getattr(page, "on_page_mounted", None)
+        if callable(mounted):
+            try:
+                mounted()
+            except Exception:  # noqa: BLE001
+                pass
 
     def init_page(self, page: ft.Page):
         """初始化页面"""

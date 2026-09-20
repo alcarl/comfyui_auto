@@ -10,6 +10,7 @@ from app.pages.stack_page import StackPage
 from app.pages.player import MusicPlayer
 from app.pages.todo import TodoPage
 from app.pages.pinterest import PinterestPage
+from app.pages.library import LibraryPage
 
 
 def main(page: ft.Page):
@@ -43,6 +44,7 @@ def main(page: ft.Page):
         {"icon": ft.Icons.HOME_ROUNDED, "name": "主页", "page_class": HomePage},
         {"icon": ft.Icons.DOWNLOAD_ROUNDED, "name": "Pinterest抓图",
          "page_class": PinterestPage},
+        {"icon": ft.Icons.PHOTO_LIBRARY, "name": "图片库", "page_class": LibraryPage},
         # 要创建其他带子导航的页面, 可以直接复制 sub_navigation_bar 文件夹,然后重命名
         {"icon": ft.Icons.WIDGETS_ROUNDED, "name": "子导航", "page_class": SubNavigationBar},
         {"icon": ft.Icons.MUSIC_NOTE, "name": "播放器", "page_class": MusicPlayer},

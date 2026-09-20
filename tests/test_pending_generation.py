@@ -48,6 +48,32 @@ class TestPendingGeneration(unittest.TestCase):
         pending = self.lib.list_pending_generation()
         self.assertEqual([r.image_id for r in pending], [r1.image_id])
 
+    def test_reset_generation_returns_to_pending(self):
+        """reset_generation：删生成图文件 + 生成记录 + 标签，回到待生成。"""
+        r1 = self.lib.add_image(b"img1", source_url="http://a/1.jpg")
+        iid = r1.image_id
+        self.lib.mark_generated(iid, f"{iid}.png")
+        self.lib.set_tags(iid, "img1.png", ["1girl", "solo"])
+        # 伪造 outputs/ 里的生成图文件
+        out_dir = os.path.join(os.path.dirname(self.lib_dir), "outputs")
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = os.path.join(out_dir, f"{iid}.png")
+        with open(out_path, "wb") as f:
+            f.write(b"fake-png")
+        self.assertTrue(self.lib.is_generated(iid))
+        self.assertTrue(self.lib.has_tags(iid))
+
+        self.lib.reset_generation(iid)
+
+        # 生成图文件被删、生成状态与标签被清、原图保留
+        self.assertFalse(os.path.exists(out_path))
+        self.assertFalse(self.lib.is_generated(iid))
+        self.assertFalse(self.lib.has_tags(iid))
+        self.assertIsNotNone(self.lib.get_path(iid))
+        # 回到待生成列表，可被生成任务扫描
+        pending_ids = {r.image_id for r in self.lib.list_pending_generation()}
+        self.assertIn(iid, pending_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

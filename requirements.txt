@@ -43,3 +43,9 @@ watchdog==4.0.2
 websocket-client==1.8.0
 pytest==8.3.4
 nodriver==0.50.3
+# WD14 反推提示词（懒导入，未用到该功能可不装）
+huggingface_hub>=0.25.0
+numpy>=1.26.0
+# GPU 加速版（DirectML，任意 DX12 显卡可用）；代码会自动回退 CPU 版
+onnxruntime-directml>=1.17.0
+Pillow>=10.0.0

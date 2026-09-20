@@ -165,16 +165,54 @@ class ImageLibrary:
         return [self._dict_to_record(d) for d in self.db.list_images()]
 
     def remove(self, image_id: str) -> bool:
-        """删除一条记录及其文件。"""
+        """删除一条记录及其文件（原图 + 生成图 + 反推提示词）。"""
         with self._lock:
             rec = self.get_record(image_id)
             if rec is None:
                 return False
             path = os.path.join(self.library_dir, rec.filename)
             if os.path.exists(path):
-                os.remove(path)
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+            # 同时删除 ComfyUI 输出目录中的生成图（<image_id>.<ext>）
+            out_dir = self._output_dir()
+            if os.path.isdir(out_dir):
+                for fname in os.listdir(out_dir):
+                    if os.path.splitext(fname)[0] == image_id:
+                        try:
+                            os.remove(os.path.join(out_dir, fname))
+                        except OSError:
+                            pass
+            # delete_image 级联清理 generations 与 tags 记录
             self.db.delete_image(image_id)
             return True
+
+    def reset_generation(self, image_id: str) -> None:
+        """删除该图片的生成结果，使其回到"未生成"（可被生成任务扫描）。
+
+        与 ``remove`` 的区别：``remove`` 连原图一起删；本方法只清生成侧：
+
+        1. 删 outputs/ 目录里 stem==image_id 的生成图文件
+        2. 删 generations 记录（status / output_files 绑定 / generated_at）
+           —— LEFT JOIN 视角下该图片回到待生成，list_pending_generation
+           会重新包含它
+        3. 删 tags 记录（旧生成图的反推标签已随文件失效）
+
+        原图文件与 images 主记录均保留。
+        """
+        with self._lock:
+            out_dir = self._output_dir()
+            if os.path.isdir(out_dir):
+                for fname in os.listdir(out_dir):
+                    if os.path.splitext(fname)[0] == image_id:
+                        try:
+                            os.remove(os.path.join(out_dir, fname))
+                        except OSError:
+                            pass
+            self.db.delete_generation(image_id)
+            self.db.delete_tags(image_id)
 
     def count(self) -> int:
         return self.db.count_images()
@@ -210,6 +248,61 @@ class ImageLibrary:
 
     def count_generated(self) -> int:
         return self.db.count_generated()
+
+    # ------------------------------------------------------------------ #
+    # 反推提示词（WD14 tagger，代理到 StorageDB）
+    # ------------------------------------------------------------------ #
+    def set_tags(self, image_id: str, filename: str, tags: list) -> int:
+        """全量替换某张图片的反推提示词（每个提示词一行记录）。"""
+        return self.db.set_tags(image_id, filename, tags)
+
+    def get_tags(self, image_id: str) -> list:
+        """返回某张图片的全部反推提示词。"""
+        return self.db.get_tags(image_id)
+
+    def has_tags(self, image_id: str) -> bool:
+        """判断某张图片是否已有反推提示词。"""
+        return self.db.has_tags(image_id)
+
+    def list_distinct_tags(self) -> list:
+        """列出全部去重后的提示词（供筛选）。"""
+        return self.db.list_distinct_tags()
+
+    def search_image_ids_by_tag(self, keyword: str) -> list:
+        """按提示词关键词筛选图片 id 列表。"""
+        return self.db.search_image_ids_by_tag(keyword)
+
+    def generated_output_path(self, image_id: str) -> Optional[str]:
+        """返回该图片的生成图路径。
+
+        权威来源是数据库 ``generations.output_files``（生成流程在
+        ``mark_generated`` 时把真实输出文件名记到那里），而不是按文件名
+        在 ``outputs/`` 目录里模糊匹配。后者在以下两种情形会把别人/旧版
+        的生成图当成目标，造成反推等下游读取错图：
+
+        - 多个 image_id 的 stem 存在前缀重叠（如 ``abc`` 与 ``abc_1``）
+        - outputs/ 目录里残留了上一次生成同名的旧文件
+
+        当 DB 没有记录 / 记录的文件已不存在时，才回退到 outputs/ 目录按
+        ``<image_id>.<ext>`` 精确匹配。
+        """
+        out_dir = self._output_dir()
+        # 1. 优先：DB 登记的输出文件名（多张时取第一张仍存在的）
+        gen = self.db.get_generation(image_id)
+        if gen and gen.output_files:
+            for fname in (f for f in gen.output_files.split(",") if f):
+                p = os.path.join(out_dir, fname)
+                if os.path.isfile(p):
+                    return p
+        # 2. 回退：精确 stem 匹配（兼容旧库/手工移入的生成图）
+        if not os.path.isdir(out_dir):
+            return None
+        for fname in os.listdir(out_dir):
+            if os.path.splitext(fname)[0] == image_id:
+                p = os.path.join(out_dir, fname)
+                if os.path.isfile(p):
+                    return p
+        return None
 
     def list_pending_generation(self) -> List[ImageRecord]:
         """返回“已下载但尚未生成”的图片记录（通过 JOIN 两表一次获取）。
